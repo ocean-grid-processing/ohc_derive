@@ -60,7 +60,7 @@ def main():
         "cp0": a.get("cp0"), "rho0": a.get("rho0"),
         "mask_preset": a.get("mask_preset", ""),   # inherited from publish
         "transforms": ",".join(names),
-        "ensemble": (not args.no_ensemble),
+        "ensemble": int(not args.no_ensemble),     # NetCDF attrs can't be bool; 1/0
     }
 
     fname = "derive_%s_%s_lev%s.nc" % (a.get("product", "UNSET"),

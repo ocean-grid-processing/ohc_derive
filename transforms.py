@@ -75,6 +75,6 @@ REGISTRY = {
     "timemean": (time_mean, True),
     "trend": (trend, True),
     "integral": (integral, True),
-    "anomaly": (anomaly, False),   # cube output; ensemble propagation deferred (memory)
-    "area": (area, False),
+    "anomaly": (anomaly, True),    # cube output; higher transient memory (~7 GB member stack)
+    "area": (area, False),         # pure grid geometry; no uncertainty to propagate
 }

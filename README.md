@@ -64,7 +64,8 @@ with an `ensemble` flag. The wrapper and runner handle the rest. No other file c
 
 ## Status / notes
 
-First pass. Ensemble-propagated: `timemean`, `trend`, `integral` (cheap per-member reductions).
-Not yet ensemble-propagated: `anomaly` (its per-member form is a full `(member,time,lat,lon)`
-cube ~7 GB — deferred to a separate member-retaining export). Reads the full ensemble for the
-`_sd` companions, so run inside the job allocation.
+First pass. Every transform is ensemble-propagated (carries a `_sd`) except `area` (pure grid
+geometry). `anomaly`'s `_sd` is the heaviest — its per-member form is a full
+`(member, time, lat, lon)` stack (~7 GB transient, ~20 GB peak), still within a typical job.
+The `_sd` companions read the full ensemble, so run inside the job allocation (or `--no-ensemble`
+for fast central-only output).

@@ -24,12 +24,13 @@ attributes carry only provenance.
 | `ohc_timemean` (+ `_sd`) | `(lat, lon)` | TJ/m² | `timemean` |
 | `ohc_trend` (+ `_sd`) | `(lat, lon)` | TJ/m²/s | `trend` |
 | `ohc_integral` (+ `_sd`) | `(time,)` | TJ | `integral` |
-| `ohc_anom` | `(time, lat, lon)` | TJ/m² | `anomaly` (deseasonalized + detrended) |
-| `ohc_anom12` | `(month, lat, lon)` | TJ/m² | `anomaly` (seasonal cycle) |
+| `ohc_anom` (+ `_sd`) | `(time, lat, lon)` | TJ/m² | `anomaly` (deseasonalized + detrended) |
+| `ohc_anom12` (+ `_sd`) | `(month, lat, lon)` | TJ/m² | `anomaly` (seasonal cycle) |
 | `area_total` | `()` | m² | `area` |
 
-`anomaly` and `area` are not ensemble-propagated in this first pass (`anomaly` would produce a
-full `(member, time, lat, lon)` stack — see notes), so they have no `_sd` companion.
+Every quantity is ensemble-propagated (carries a `_sd`) except `area_total`, which is pure grid
+geometry with no uncertainty. `anomaly`'s `_sd` is correct but the heaviest to compute — its
+per-member form is a full `(member, time, lat, lon)` stack (~7 GB transient, peak ~20 GB).
 
 ## Group attributes (provenance)
 
