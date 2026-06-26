@@ -16,4 +16,4 @@ module load anaconda/2023.09
 conda activate ohc_crosscheck
 
 cd $SLURM_SUBMIT_DIR
-python -m ohc_derive /scratch/alpine/wimi7695/me4oh/postprocessing/outputs/OP20260507/15_20/OHC_* --out /scratch/alpine/wimi7695/me4oh/postprocessing/outputs/OP20260507/15_20 --transforms all
+python derive.py /scratch/alpine/wimi7695/me4oh/postprocessing/outputs/OP20260507/15_20/OHC_* --out /scratch/alpine/wimi7695/me4oh/postprocessing/outputs/OP20260507/15_20 --transforms all

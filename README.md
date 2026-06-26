@@ -37,7 +37,7 @@ ohc_derive/
   loader.py      load_product(store, preset) -> product Dataset
   transforms.py  the f(field, product) registry (timemean, trend, integral, anomaly, area)
   ensemble.py    with_uncertainty(f, product): central from mean field, _sd from ensemble
-  __main__.py    CLI: select transforms, merge, write
+  derive.py      CLI entry: select transforms, merge, write  (run: python derive.py ...)
 ```
 
 ## Run
@@ -46,10 +46,10 @@ ohc_derive/
 pip install -r requirements.txt   # numpy, xarray>=2024.10, netCDF4
 
 # all transforms, ensemble uncertainty on (needs the OHCENS_ sibling):
-python -m ohc_derive /path/OHC_<...>.nc --transforms all --out derive/
+python derive.py /path/OHC_<...>.nc --transforms all --out derive/
 
 # a subset, central estimate only (fast, no OHCENS_ needed):
-python -m ohc_derive /path/OHC_<...>.nc --transforms trend,integral --no-ensemble --out derive/
+python derive.py /path/OHC_<...>.nc --transforms trend,integral --no-ensemble --out derive/
 ```
 
 Output: `derive/derive_<product>_<period>_lev<low>_<high>.nc` — e.g. `ohc_timemean`/`_sd`
