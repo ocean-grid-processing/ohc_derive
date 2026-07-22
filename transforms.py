@@ -13,9 +13,21 @@ import numpy as np
 import xarray as xr
 
 
+# Idealized uniform month length, matching the original MATLAB
+# (helper_compute_trend_per_second_from_monthly: t = (0:n-1)*365.25/12*86400).
+SEC_PER_MONTH = 365.25 / 12.0 * 24.0 * 3600.0
+
+
 def _time_seconds(field):
-    t = field["time"]
-    return ((t - t[0]) / np.timedelta64(1, "s")).astype("float64")   # [time]
+    """Uniform monthly seconds (the MATLAB convention), not real calendar spacing.
+
+    The trend's slope is per-second on this axis, and the anomaly's linear detrend uses the same
+    evenly-spaced {1, t} subspace as MATLAB's index-based `detrend`. Real day-15 spacing would
+    shift the slope and the residual slightly off the original.
+    """
+    n = field.sizes["time"]
+    sec = np.arange(n, dtype="float64") * SEC_PER_MONTH
+    return xr.DataArray(sec, dims=("time",), coords={"time": field["time"]})
 
 
 def _slope_per_s(field):
@@ -48,7 +60,13 @@ def integral(field, product):
 
 
 def anomaly(field, product):
-    """Cube + climatology: deseasonalized+detrended anomaly and the seasonal cycle."""
+    """Cube + climatology: deseasonalized+detrended anomaly and the seasonal cycle.
+
+    Mirrors helper_compute_mean_trendpersecond_anom12_anom_from_monthly.m: build the monthly
+    climatology, anom12 = climatology - overall mean, deseason = field - climatology[month], then
+    linear-detrend the deseasonalized field. (`groupby("time.month")` bins by calendar month,
+    identical to the MATLAB position-mod-12 binning for January-start records, which is our case.)
+    """
     clim = field.groupby("time.month").mean("time")              # [month, lat, lon]
     anom12 = clim - field.mean("time")
     anom12.attrs = {"units": "TJ/m2", "long_name": "seasonal climatology anomaly"}

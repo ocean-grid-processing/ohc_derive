@@ -56,6 +56,18 @@ Output: `derive/derive_<product>_<period>_lev<low>_<high>.nc` — e.g. `ohc_time
 (maps), `ohc_trend`/`_sd` (maps), `ohc_integral`/`_sd` (series), `ohc_anom` (cube), `ohc_anom12`
 (climatology), `area_total` (scalar), all in one file.
 
+## Tests
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt   # adds pytest
+pytest                                                    # from this directory
+```
+
+`tests/` uses small synthetic fields with known answers: transforms vs. analytic expectations
+(constant/linear/seasonal), the ensemble wrapper (central from the mean field, `_sd` from member
+spread, single-member → NaN), the loader's `.nc` round-trip and sibling resolution, and the CLI
+end-to-end (all transforms, `--no-ensemble`, unknown-transform error). No real data needed.
+
 ## Adding a transform
 
 Write `f(field, product) -> Dataset` that reduces over `time` (and broadcasts over any leading

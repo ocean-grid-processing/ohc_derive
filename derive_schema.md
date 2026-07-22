@@ -37,6 +37,24 @@ per-member form is a full `(member, time, lat, lon)` stack (~7 GB transient, pea
 `Conventions`, `source`, `mapped_fields_tag`, `layer_top`, `layer_bottom`, `cp0`, `rho0`,
 `mask_preset`, `transforms` (which ran), `ensemble` (whether `_sd` companions were produced).
 
+## Parity with the original MATLAB
+
+The opinionated definitions follow `ME4OH_Giglio_etal2026v2/` (`store_mean_trend_anom12_anom`
+and its `helper_compute_*`), so results track the original:
+
+- **`timemean`** = mean over time (`mean(DATA,3)`).
+- **`trend`** = linear OLS slope fit to the **raw** field (season included), per second, on an
+  **idealized uniform month axis** (`365.25/12` days), matching the helper's default time vector.
+  The optional quadratic term in the MATLAB helper is not invoked there, so we fit linear only.
+- **`anomaly`** = monthly climatology, `anom12 = climatology − overall mean`, deseason =
+  `field − climatology[month]`, then a linear detrend of the deseasonalized field (the helper's
+  `detrend`). Calendar-month binning equals the MATLAB position-mod-12 binning for the
+  January-start records we use.
+
+**Sanctioned deviation:** the original computes no ensemble spread on the gridded anomaly; we add
+`*_sd` companions to every quantity except `area` (the symmetry decision). That's the only
+intentional departure — everything else is meant to reproduce the MATLAB.
+
 ## Notes / forward-compat
 
 - **`ohc_anom12` introduces a `month` coordinate** (1…12) alongside `time`; this is the one
