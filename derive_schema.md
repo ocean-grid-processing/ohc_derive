@@ -34,8 +34,10 @@ per-member form is a full `(member, time, lat, lon)` stack (~7 GB transient, pea
 
 ## Group attributes (provenance)
 
-`Conventions`, `source`, `mapped_fields_tag`, `layer_top`, `layer_bottom`, `cp0`, `rho0`,
-`mask_preset`, `transforms` (which ran), `ensemble` (whether `_sd` companions were produced).
+Inherited from the publish submission and carried through: `Conventions`, `source`, `product`,
+`experiment`, `period`, `layer_m` (the `<low>_<high>` layer tag), `cp0`, `rho0`, `mask_preset`.
+Added by the runner: `transforms` (which ran), `ensemble` (1/0 — whether `_sd` companions were
+produced). `ohc_combine` keys each mapped layer on `layer_m`.
 
 ## Parity with the original MATLAB
 
