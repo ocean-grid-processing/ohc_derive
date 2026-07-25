@@ -1,20 +1,14 @@
 # ohc_derive
 
-`ohc_derive` does the per-product downstream math on one `ohc_ingest` submission — anomalies, trends, integrals — with no reference to any other product (cross-group comparison is `me4oh_assess`'s job). It's the missing middle of the pipeline:
-
-```
-ohc_ingest ──▶ ohc_derive ──▶ ohc_combine / me4oh_assess
-(one product's  (per-product      (combine layers /
- OHC store)      derived fields)    compare products)
-```
+`ohc_derive` does per-product downstream math — anomalies, trends, integrals — on a single ME4OH-compliant OHC submission, writing the derived fields as one NetCDF per layer.
 
 ## What it computes
 
-**Input** is `ohc_ingest`'s published `OHC_` submission (posterior-mean OHC, TJ/m², mask already applied as NaN) — the `.nc` handoff, not the internal zarr. With the ensemble on, it also reads the `OHCENS_` sibling (from `publish.py --ensemble`, located by swapping the filename prefix). `cell_area` is regenerated from the grid, so nothing else is needed upstream.
+**Input** is an ME4OH-compliant `OHC_` submission NetCDF — posterior-mean OHC, TJ/m², mask already applied as NaN. If an `OHCENS_` sibling (the full per-member ensemble, same filename with the prefix swapped) sits next to it, ensemble uncertainty is available too. `cell_area` is regenerated from the grid, so the submission is all that's needed.
 
 A **product** is that submission loaded as an `xr.Dataset`: the mean OHC field (and the full ensemble when present), plus `cell_area` and a `usable` mask (finite at every timestep).
 
-A **transform** is a pure `f(field, product) -> Dataset` that reduces over time and broadcasts over leading dims — so the *same* `f` runs on the mean field `[time,lat,lon]` and on the ensemble `[member,time,lat,lon]`. That uniformity is what lets the **ensemble wrapper** produce, automatically, a central estimate (from the mean field) plus a `_sd` companion (1σ across the 100 members) for any transform. The registry:
+A **transform** is a pure function `f(field, product) -> Dataset`. It addresses the field by **dimension name** (`time`, `lat`, `lon`) rather than axis position — some collapse `time` into a map, `integral` collapses `lat`/`lon` into a series, `anomaly` regroups `time` into a seasonal `month` axis (see the table). Because nothing is pinned to an axis position, the *same* `f` runs unchanged whether the field is the mean `(time, lat, lon)` or the ensemble `(member, time, lat, lon)`: the extra leading `member` axis just rides along, and the operation runs once per member. The **ensemble wrapper** uses exactly that — it runs a transform on the mean field for the central estimate and on the ensemble for the spread, collapsing `member` into a `_sd` companion (1σ across the 100 members). No transform carries any ensemble-specific code. The registry:
 
 | `--transforms` name | output variable(s) | dims | units | `_sd`? | what it is |
 |---|---|---|---|:--:|---|
@@ -30,30 +24,20 @@ The runner merges the selected transforms into one mixed-rank Dataset and writes
 
 ### Environment
 
-```bash
-pip install -r requirements.txt          # numpy, xarray>=2024.10, netCDF4
-```
+Described in `Dockerfile` to generate a containerized environment; make a similar env in anaconda on blanca when running on the cluster.
 
 ### Test
 
-Synthetic fields with known analytic answers — no real data, no cluster:
+Tests can be run on your machine in the containerized environment:
 
-```bash
-pip install -r requirements.txt -r requirements-dev.txt   # adds pytest
-pytest                                                    # from this directory
 ```
-
-Covers transforms vs. analytic expectations (constant/linear/seasonal), the ensemble wrapper (central from the mean, `_sd` from member spread, single-member → NaN), the loader's `.nc` round-trip + sibling resolution, and the CLI end-to-end (all transforms, `--no-ensemble`, unknown-transform error).
+docker image build -t ohc_derive:test .
+docker container run -v $(pwd):/app ohc_derive:test pytest
+```
 
 ### Run
 
-```bash
-# everything, with ensemble uncertainty (needs the OHCENS_ sibling next to the submission):
-python derive.py /path/OHC_<...>.nc --transforms all --out derive/
-
-# a subset, central-only — fast, no OHCENS_ needed (this is what ohc_combine calls):
-python derive.py /path/OHC_<...>.nc --transforms integral,area --no-ensemble --out derive/
-```
+See `derive.slurm` for a real example of running this on blanca at CU.
 
 With the ensemble on (the default), the `OHCENS_` sibling **must** exist next to the submission or the loader raises `FileNotFoundError`, and every transform except `area` gets a `_sd`. `anomaly`'s `_sd` is the heaviest — its per-member form is a full `(member, time, lat, lon)` stack (~7 GB transient, ~20 GB peak), so run the ensemble path inside your job allocation. `--no-ensemble` is the fast central-only path; central values are byte-identical either way. The output group attr `ensemble` records `1`/`0`.
 
@@ -63,11 +47,11 @@ All configuration is on the command line — no env, no config file. The availab
 
 | option | default | effect |
 |---|---|---|
-| `SUBMISSION.nc` (positional) | *(required)* | the `OHC_` submission from `ohc_ingest`'s `publish.py` (posterior-mean OHC, TJ/m², mask applied as NaN). |
+| `SUBMISSION.nc` (positional) | *(required)* | a published `OHC_` submission NetCDF (posterior-mean OHC, TJ/m², mask applied as NaN). |
 | `--transforms` | `all` | comma list of `timemean,trend,integral,anomaly,area`, or `all`. Unknown names error. |
 | `--no-ensemble` | off (ensemble **on**) | central estimate only — skip the `_sd` companions and do **not** read the `OHCENS_` sibling. |
 | `--out` | `.` | output directory. |
 
 ## Adding a transform
 
-Write `f(field, product) -> Dataset` that reduces over `time` (and broadcasts over any leading dim), give its output variables `units`/`long_name`, and register it in `transforms.REGISTRY` with an `ensemble` flag. The wrapper and runner do the rest — no other file changes.
+Write `f(field, product) -> Dataset` that addresses the field by dimension name (so it stays agnostic to the leading `member` axis), give its output variables `units`/`long_name`, and register it in `transforms.REGISTRY` with an `ensemble` flag. The wrapper and runner do the rest — no other file changes.
