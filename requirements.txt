@@ -1,4 +1,0 @@
-# ohc_derive deps. Reads ohc_ingest published NetCDF (submission + OHCENS_ sibling), writes a NetCDF.
-numpy
-xarray>=2024.10
-netCDF4

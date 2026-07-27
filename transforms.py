@@ -48,12 +48,12 @@ def time_mean(field, product):
 def trend(field, product):
     """Map: linear OHC trend per second."""
     s = _slope_per_s(field).where(product["usable"])
-    s.attrs = {"units": "J/m2/s", "long_name": "linear OHC trend"}
+    s.attrs = {"units": "TJ/m2/s", "long_name": "linear OHC trend"}   # field is TJ/m^2, slope per second
     return xr.Dataset({"ohc_trend": s})
 
 
 def integral(field, product):
-    """Series: area-weighted global integral of OHC (J)."""
+    """Series: area-weighted global integral of OHC (TJ = TJ/m^2 field x m^2 cell area)."""
     series = (field * product["cell_area"]).sum(("lat", "lon"))   # [..., time]
     series.attrs = {"units": "TJ", "long_name": "area-integrated ocean heat content"}
     return xr.Dataset({"ohc_integral": series})
