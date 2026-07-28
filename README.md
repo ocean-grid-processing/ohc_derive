@@ -39,7 +39,7 @@ docker container run -v $(pwd):/app ohc_derive:test pytest
 
 See `derive.slurm` for a real example of running this on blanca at CU.
 
-With the ensemble on (the default), the `OHCENS_` sibling **must** exist next to the submission or the loader raises `FileNotFoundError`, and every transform except `area` gets a `_sd`. `anomaly`'s `_sd` is the heaviest — its per-member form is a full `(member, time, lat, lon)` stack (~7 GB transient, ~20 GB peak), so run the ensemble path inside your job allocation. `--no-ensemble` is the fast central-only path; central values are byte-identical either way. The output group attr `ensemble` records `1`/`0`.
+With the ensemble on (the default), the `OHCENS_` sibling **must** exist next to the submission or the loader raises `FileNotFoundError`, and every ensemble transform (all but `area`) gets a collapsed `<var>_sd`. Naming a transform in `--keep-members` instead outputs its **raw members** as `<var>_ens` (XOR with `_sd`) — for a consumer that reduces the ensemble itself *after* a later nonlinear step (the spread of a yearly mean, say, which the collapsed `_sd` can't give). Memory is the caller's call: `anomaly`'s per-member form is a full `(member, time, lat, lon)` stack (~7 GB transient, ~20 GB peak), so run any ensemble path inside your job allocation. `--no-ensemble` is the fast central-only path; central values are byte-identical either way. Group attrs `ensemble` (`1`/`0`) and `members_kept` record what was done.
 
 #### derive.py options
 
@@ -50,6 +50,7 @@ All configuration is on the command line — no env, no config file. The availab
 | `SUBMISSION.nc` (positional) | *(required)* | a published `OHC_` submission NetCDF (posterior-mean OHC, TJ/m², mask applied as NaN). |
 | `--transforms` | `all` | comma list of `timemean,trend,integral,anomaly,area`, or `all`. Unknown names error. |
 | `--no-ensemble` | off (ensemble **on**) | central estimate only — skip the `_sd` companions and do **not** read the `OHCENS_` sibling. |
+| `--keep-members` | *(none)* | comma list of transforms (or `all`) to output as raw members `<var>_ens` instead of the collapsed `<var>_sd` (XOR). Ensemble transforms only, and must be among `--transforms`; anything else (incl. with `--no-ensemble`) errors. |
 | `--out` | `.` | output directory. |
 
 ## Adding a transform

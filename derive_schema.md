@@ -32,12 +32,21 @@ Every quantity is ensemble-propagated (carries a `_sd`) except `area_total`, whi
 geometry with no uncertainty. `anomaly`'s `_sd` is correct but the heaviest to compute — its
 per-member form is a full `(member, time, lat, lon)` stack (~7 GB transient, peak ~20 GB).
 
+With the ensemble on, an ensemble transform yields a collapsed `<var>_sd`. Naming it in
+`--keep-members` instead outputs the raw members `<var>_ens` (XOR with `_sd`) — the un-collapsed
+per-member result. Use it when a consumer must reduce the ensemble itself *after* a later nonlinear
+step: e.g. `ohc_combine` takes the ensemble std of the **yearly** integral (yearly-mean per member,
+then std across members), which the collapsed monthly `_sd` can't reproduce — so it asks for
+`ohc_integral_ens` via `--keep-members integral`. Memory is the caller's call: keeping a gridded
+transform's members (`anomaly` → `(member, time, lat, lon)`) can be large.
+
 ## Group attributes (provenance)
 
 Inherited from the publish submission and carried through: `Conventions`, `source`, `product`,
 `experiment`, `period`, `layer_m` (the `<low>_<high>` layer tag), `cp0`, `rho0`, `mask_preset`.
-Added by the runner: `transforms` (which ran), `ensemble` (1/0 — whether `_sd` companions were
-produced). `ohc_combine` keys each mapped layer on `layer_m`.
+Added by the runner: `transforms` (which ran), `ensemble` (1/0 — whether the ensemble was read),
+`members_kept` (comma list of transforms output as `<var>_ens` instead of `<var>_sd`, or `""`).
+`ohc_combine` keys each mapped layer on `layer_m`.
 
 ## Parity with the original MATLAB
 
