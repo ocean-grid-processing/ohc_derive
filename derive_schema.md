@@ -24,6 +24,8 @@ attributes carry only provenance.
 | `ohc_timemean` (+ `_sd`) | `(lat, lon)` | TJ/m² | `timemean` |
 | `ohc_trend` (+ `_sd`) | `(lat, lon)` | TJ/m²/s | `trend` |
 | `ohc_integral` (+ `_sd`) | `(time,)` | TJ | `integral` |
+| `ohc_integral_anom` (+ `_sd`) | `(time,)` | TJ | `integral_anom` (OHCA — all-time mean removed) |
+| `ohc_integral_tendency` (+ `_sd`) | `(time,)` | TJ | `integral_tendency` (OHU — month-to-month Δ, NaN at t0) |
 | `ohc_anom` (+ `_sd`) | `(time, lat, lon)` | TJ/m² | `anomaly` (deseasonalized + detrended) |
 | `ohc_anom12` (+ `_sd`) | `(month, lat, lon)` | TJ/m² | `anomaly` (seasonal cycle) |
 | `area_total` | `()` | m² | `area` |
@@ -35,7 +37,7 @@ per-member form is a full `(member, time, lat, lon)` stack (~7 GB transient, pea
 With the ensemble on, an ensemble transform yields a collapsed `<var>_sd`. Naming it in
 `--keep-members` instead outputs the raw members `<var>_ens` (XOR with `_sd`) — the un-collapsed
 per-member result. Use it when a consumer must reduce the ensemble itself *after* a later nonlinear
-step: e.g. `ohc_combine` takes the ensemble std of the **yearly** integral (yearly-mean per member,
+step: e.g. `ohc_gcos_emitter` takes the ensemble std of the **yearly** integral (yearly-mean per member,
 then std across members), which the collapsed monthly `_sd` can't reproduce — so it asks for
 `ohc_integral_ens` via `--keep-members integral`. Memory is the caller's call: keeping a gridded
 transform's members (`anomaly` → `(member, time, lat, lon)`) can be large.
@@ -46,7 +48,7 @@ Inherited from the publish submission and carried through: `Conventions`, `sourc
 `experiment`, `period`, `layer_m` (the `<low>_<high>` layer tag), `cp0`, `rho0`, `mask_preset`.
 Added by the runner: `transforms` (which ran), `ensemble` (1/0 — whether the ensemble was read),
 `members_kept` (comma list of transforms output as `<var>_ens` instead of `<var>_sd`, or `""`).
-`ohc_combine` keys each mapped layer on `layer_m`.
+`ohc_gcos_emitter` keys each mapped layer on `layer_m`.
 
 ## Parity with the original MATLAB
 
@@ -70,7 +72,12 @@ intentional departure — everything else is meant to reproduce the MATLAB.
 
 - **`ohc_anom12` introduces a `month` coordinate** (1…12) alongside `time`; this is the one
   extra coordinate beyond the ingest grid.
-- **Ocean heat uptake (OHU)** would be `diff(OHC)/dt`, one timestep shorter, so when added it
-  needs its own time coordinate (e.g. `time_ohu`) rather than reusing `time`.
+- **`ohc_integral_tendency` (OHU)** is the backward first difference of the integral on the full
+  `time` axis, NaN at `t0` (no prior month) — the prior-art convention, so it stays aligned
+  month-for-month with the other series. It's the raw month-to-month change (matches the original's
+  `data_tendency`); expressing it as a per-second uptake flux (W/m²) is a downstream units choice.
+- **`ohc_integral_anom` (OHCA)** is the integral minus its whole-record mean — the canonical,
+  parameter-free anomaly. A deliverable wanting a specific baseline *window* re-references it
+  downstream (as the GCOS emitter does with 2005–2024).
 - **Member-retained outputs** (keeping the full `(member, …)` stack for chaining a second
   nonlinear step) are large and belong in a separate file, not this summary Dataset.
