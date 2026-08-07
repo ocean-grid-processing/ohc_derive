@@ -15,6 +15,8 @@ A **transform** is a pure function `f(field, product) -> Dataset`. It addresses 
 | `timemean` | `ohc_timemean` | (lat, lon) | TJ/m² | yes | mean over time |
 | `trend` | `ohc_trend` | (lat, lon) | TJ/m²/s | yes | linear OLS slope, per second, on a uniform-month axis |
 | `integral` | `ohc_integral` | (time,) | TJ | yes | area-weighted horizontal integral |
+| `integral_anom` | `ohc_integral_anom` | (time,) | TJ | yes | area-integrated OHC anomaly (OHCA), all-time mean removed |
+| `integral_tendency` | `ohc_integral_tendency` | (time,) | TJ | yes | month-to-month change in the integral (OHU); NaN at t0 |
 | `anomaly` | `ohc_anom` + `ohc_anom12` | (time,lat,lon) + (month,lat,lon) | TJ/m² | yes | deseasonalized+detrended anomaly, and the seasonal cycle |
 | `area` | `area_total` | () scalar | m² | no | usable ocean area (pure grid geometry) |
 
@@ -48,7 +50,7 @@ All configuration is on the command line — no env, no config file. The availab
 | option | default | effect |
 |---|---|---|
 | `SUBMISSION.nc` (positional) | *(required)* | a published `OHC_` submission NetCDF (posterior-mean OHC, TJ/m², mask applied as NaN). |
-| `--transforms` | `all` | comma list of `timemean,trend,integral,anomaly,area`, or `all`. Unknown names error. |
+| `--transforms` | `all` | comma list of `timemean,trend,integral,integral_anom,integral_tendency,anomaly,area`, or `all`. Unknown names error. |
 | `--no-ensemble` | off (ensemble **on**) | central estimate only — skip the `_sd` companions and do **not** read the `OHCENS_` sibling. |
 | `--keep-members` | *(none)* | comma list of transforms (or `all`) to output as raw members `<var>_ens` instead of the collapsed `<var>_sd` (XOR). Ensemble transforms only, and must be among `--transforms`; anything else (incl. with `--no-ensemble`) errors. |
 | `--out` | `.` | output directory. |

@@ -52,11 +52,45 @@ def trend(field, product):
     return xr.Dataset({"ohc_trend": s})
 
 
+def _integrate(field, product):
+    """Area-weighted horizontal integral of OHC -> series [..., time] in TJ (NaN cells drop out)."""
+    return (field * product["cell_area"]).sum(("lat", "lon"))
+
+
 def integral(field, product):
     """Series: area-weighted global integral of OHC (TJ = TJ/m^2 field x m^2 cell area)."""
-    series = (field * product["cell_area"]).sum(("lat", "lon"))   # [..., time]
+    series = _integrate(field, product)
     series.attrs = {"units": "TJ", "long_name": "area-integrated ocean heat content"}
     return xr.Dataset({"ohc_integral": series})
+
+
+def integral_anom(field, product):
+    """Series: area-integrated OHC anomaly, all-time mean removed (OHCA), TJ.
+
+    Canonical, parameter-free referencing — the baseline is the whole-record mean. A deliverable
+    that wants a specific baseline *window* (e.g. GCOS's 2005-2024) re-references this downstream;
+    derive only provides the canonical form. Because integration is linear and the mask is
+    time-constant, this is exactly `integral` with its own time-mean subtracted.
+    """
+    anom = _integrate(field, product)
+    anom = anom - anom.mean("time")
+    anom.attrs = {"units": "TJ", "long_name": "area-integrated OHC anomaly (all-time mean removed)"}
+    return xr.Dataset({"ohc_integral_anom": anom})
+
+
+def integral_tendency(field, product):
+    """Series: month-to-month change in area-integrated OHC (ocean heat uptake), TJ.
+
+    Backward first difference on the full `time` axis with the first step NaN (no prior month) —
+    prior-art convention, so it stays aligned month-for-month with the other series:
+    `tendency(t) = integral(t) - integral(t-1)`, `tendency(t0) = NaN`. Matches the original's
+    `data_tendency` (MATLAB `diff(bfr_tseries)`): the raw change per monthly step, NOT normalized
+    by dt. A per-second uptake flux (W/m^2) is a downstream units choice, not baked in here.
+    """
+    series = _integrate(field, product)
+    tend = series - series.shift(time=1)                    # backward diff; t0 -> NaN, full axis kept
+    tend.attrs = {"units": "TJ", "long_name": "area-integrated OHC tendency (month-to-month change)"}
+    return xr.Dataset({"ohc_integral_tendency": tend})
 
 
 def anomaly(field, product):
@@ -93,6 +127,8 @@ REGISTRY = {
     "timemean": (time_mean, True),
     "trend": (trend, True),
     "integral": (integral, True),
+    "integral_anom": (integral_anom, True),         # OHCA series; cheap (member, time) ensemble
+    "integral_tendency": (integral_tendency, True), # OHU series; cheap; backward diff on time (NaN at t0)
     "anomaly": (anomaly, True),    # cube output; higher transient memory (~7 GB member stack)
     "area": (area, False),         # pure grid geometry; no uncertainty to propagate
 }
