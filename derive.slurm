@@ -16,7 +16,6 @@ module load anaconda/2023.09
 conda activate ohc_crosscheck
 
 cd $SLURM_SUBMIT_DIR
-python derive.py /scratch/alpine/wimi7695/validation/argo_ohc_Global_2004_2024_${1}/OHC_* \
-  --out /scratch/alpine/wimi7695/validation/argo_ohc_Global_2004_2024_${1} \
-  --transforms integral,integral_anom,integral_tendency,area \
-  --keep-members integral,integral_tendency
+python derive.py /scratch/alpine/wimi7695/gcos_validation/OP20260127b_potentialTemperature_-89.5S_89.5N_20.5W_379.5E_2004_2025_${1}/OHC_* \
+  --out /scratch/alpine/wimi7695/gcos_validation/OP20260127b_potentialTemperature_-89.5S_89.5N_20.5W_379.5E_2004_2025_${1} \
+  --transforms integral,area --no-ensemble
