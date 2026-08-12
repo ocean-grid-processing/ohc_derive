@@ -16,4 +16,4 @@ module load anaconda/2023.09
 conda activate ohc_crosscheck
 
 cd $SLURM_SUBMIT_DIR
-python derive.py $1 --out $2 --transforms integral,area --keep-members integral --tag $3
+python derive.py $1 --out $2 --transforms integral,area --keep-members integral --tag $3 --provenance-link https://github.com/argovis/ohc_derive/releases/tag/$3
