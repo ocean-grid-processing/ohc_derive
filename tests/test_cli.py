@@ -18,7 +18,8 @@ ALL_VARS = [
 
 
 def _run(monkeypatch, argv):
-    monkeypatch.setattr(sys, "argv", ["derive.py"] + argv)
+    # --tag is required (the provenance run token); inject it for every CLI test.
+    monkeypatch.setattr(sys, "argv", ["derive.py", "--tag", "TEST"] + argv)
     derive.main()
 
 
@@ -35,6 +36,8 @@ def test_cli_all_transforms(write_pair, monkeypatch, tmp_path):
         assert v in ds, v
     assert int(ds.attrs["ensemble"]) == 1            # int, not bool
     assert "transforms" in ds.attrs
+    assert ds.attrs["provenance_tag"] == "TEST"      # the required --tag, on the header
+    assert "product" not in ds.attrs                 # product metadata dropped
 
 
 def test_cli_no_ensemble(write_pair, monkeypatch, tmp_path):
