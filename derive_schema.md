@@ -1,6 +1,7 @@
 # ohc_derive output schema
 
-One NetCDF per product/layer, `derive_<product>_<period>_lev<low>_<high>.nc`. It is a single
+One NetCDF per product/layer, `derive_<tag>_<period>_lev<low>_<high>.nc` (leading token = the
+required `--tag`). It is a single
 `xr.Dataset` whose variables use different subsets of the shared coordinates
 `(time, lat, lon, month, member)`. Results are variables (scalars too, as 0-d variables);
 attributes carry only provenance.
@@ -44,11 +45,12 @@ transform's members (`anomaly` → `(member, time, lat, lon)`) can be large.
 
 ## Group attributes (provenance)
 
-Inherited from the publish submission and carried through: `Conventions`, `source`, `product`,
-`experiment`, `period`, `layer_m` (the `<low>_<high>` layer tag), `cp0`, `rho0`, `mask_preset`.
+Inherited from the publish submission and carried through: `Conventions`, `source`, `experiment`,
+`period`, `layer_m` (the `<low>_<high>` layer tag), `cp0`, `rho0`, `mask_preset`.
 Added by the runner: `transforms` (which ran), `ensemble` (1/0 — whether the ensemble was read),
-`members_kept` (comma list of transforms output as `<var>_ens` instead of `<var>_sd`, or `""`).
-`ohc_gcos_emitter` keys each mapped layer on `layer_m`.
+`members_kept` (comma list of transforms output as `<var>_ens` instead of `<var>_sd`, or `""`),
+`provenance_tag` (the `--tag`, also the filename token) and, when given, `provenance_link` (URL/path
+to the provenance record). `ohc_gcos_emitter` keys each mapped layer on `layer_m`.
 
 ## Parity with the original MATLAB
 
