@@ -1,26 +1,50 @@
 # ohc_derive
 
-`ohc_derive` does per-product downstream math — anomalies, trends, integrals — on a single ME4OH-compliant OHC submission, writing the derived fields as one NetCDF per layer.
+`ohc_derive` builds combined-level ("synthetic-level") ocean-heat-content analysis quantities — OHCA, OHU, their trends, and gridded anomaly maps — from native-level ME4OH submissions and a standard bathymetry, writing one NetCDF per synthetic level. It works from any ME4OH-compliant submissions plus a standard bathy, so it is not tied to a single producer.
 
 ## What it computes
 
-**Input** is an ME4OH-compliant `OHC_` submission NetCDF — posterior-mean OHC, TJ/m², mask already applied as NaN. If an `OHCENS_` sibling (the full per-member ensemble, same filename with the prefix swapped) sits next to it, ensemble uncertainty is available too. `cell_area` is regenerated from the grid, so the submission is all that's needed.
+**Inputs** are the native-level `OHC_` submission NetCDFs that make up a synthetic level — its *constituents* — plus a standard bathymetry on the common grid. Each `OHC_` file is the posterior-mean field; if its `OHCENS_` sibling (same name, `OHC_` swapped for `OHCENS_`) sits alongside, the per-member ensemble is loaded too. `cell_area` is regenerated from the grid.
 
-A **product** is that submission loaded as an `xr.Dataset`: the mean OHC field (and the full ensemble when present), plus `cell_area` and a `usable` mask (finite at every timestep).
+A **synthetic level** is an `n_fac`-weighted sum of native ME4OH levels, shallowest first — for example `0_2000` is `15_20`(×3) + `15_300` + `300_700` + `700_1850` + `1800_1850`(×3). `n_fac` scales a thin measured layer up to the slab it stands in for; each constituent carries its own dbar `top`/`bottom`, used against the bathy in the mask. The level table lives in [`levels.py`](levels.py) (`levels.LEVELS`): `0_300`, `0_700`, `0_1000`, `700_2000`, `0_2000`.
 
-A **transform** is a pure function `f(field, product) -> Dataset`. It addresses the field by **dimension name** (`time`, `lat`, `lon`) rather than axis position — some collapse `time` into a map, `integral` collapses `lat`/`lon` into a series, `anomaly` regroups `time` into a seasonal `month` axis (see the table). Because nothing is pinned to an axis position, the *same* `f` runs unchanged whether the field is the mean `(time, lat, lon)` or the ensemble `(member, time, lat, lon)`: the extra leading `member` axis just rides along, and the operation runs once per member. The **ensemble wrapper** uses exactly that — it runs a transform on the mean field for the central estimate and on the ensemble for the spread, collapsing `member` into a `_sd` companion (1σ across the 100 members). No transform carries any ensemble-specific code. The registry:
+One run builds one synthetic level (`--level`), so levels parallelize across jobs. It proceeds in six steps:
 
-| `--transforms` name | output variable(s) | dims | units | `_sd`? | what it is |
-|---|---|---|---|:--:|---|
-| `timemean` | `ohc_timemean` | (lat, lon) | TJ/m² | yes | mean over time |
-| `trend` | `ohc_trend` | (lat, lon) | TJ/m²/s | yes | linear OLS slope, per second, on a uniform-month axis |
-| `integral` | `ohc_integral` | (time,) | TJ | yes | area-weighted horizontal integral |
-| `integral_anom` | `ohc_integral_anom` | (time,) | TJ | yes | area-integrated OHC anomaly (OHCA), all-time mean removed |
-| `integral_tendency` | `ohc_integral_tendency` | (time,) | TJ | yes | month-to-month change in the integral (OHU); NaN at t0 |
-| `anomaly` | `ohc_anom` + `ohc_anom12` | (time,lat,lon) + (month,lat,lon) | TJ/m² | yes | deseasonalized+detrended anomaly, and the seasonal cycle |
-| `area` | `area_total` | () scalar | m² | no | usable ocean area (pure grid geometry) |
+1. **load** — read the constituents' submissions (mean field + members) and the standard bathy.
+2. **mask** — apply the cross-layer mask prescription over the constituents.
+3. **primitives** — reduce each constituent to its map-level primitives: the area-weighted `integral` (a time series) and the gridded field (`map`).
+4. **build** — compose the primitives into the requested deliverables.
+5. **collapse** — per constituent, take the central value from the mean field and the 1σ spread across the members.
+6. **combine** — `n_fac` sum the constituents into the synthetic level: values linearly, standard deviations worst-case.
 
-The runner merges the selected transforms into one mixed-rank Dataset and writes `derive_<tag>_<period>_lev<low>_<high>.nc` (the leading token is the required `--tag`, also written to the `provenance_tag` header attr). The exact definitions, the MATLAB-parity notes (why the trend uses uniform-month seconds, how `anom`/`anom12` are built), and the provenance attributes are in [`derive_schema.md`](derive_schema.md).
+The mean field and its members ride together on a leading `realization` axis (index 0 is the mean field, the rest are members). Steps 3–4 transform every realization the same way, and step 5 reads the central value off index 0 and the spread off the members. So an anomaly demean along time hits every realization, and each member is referenced to its own window mean.
+
+### Masking
+
+Cross-layer masking is pluggable (`masks.REGISTRY`); the default is `fully_wet_nan`. Per cell, each constituent is classified against the standard bathy as **fully wet** (floor ≥ its `bottom`), **intersecting** (its `top` ≤ floor < its `bottom`), or **dry** (floor < its `top`, or the bathy is NaN). Then, per cell:
+
+- the cell **drops out** of the level where any *fully-wet* constituent is undefined — NaN in the mean or any member, at any timestep;
+- a constituent **contributes its value** where it is not dry and is defined at every member and timestep, and contributes **0** otherwise.
+
+"Defined" is judged across every member and timestep together, so the footprint is identical for all realizations and the ensemble spread reflects real spread rather than footprint jitter. The footprint is written to `mask_<level>_<mask>.png`, and its area (m²) flows through to the output.
+
+### Quantities
+
+`--quantities` selects deliverables from `temporal_transforms.REGISTRY`. `--time-window` (`YEAR0:YEAR1`) sets the anomaly baseline and the years the trends are fit over; omitted, it spans all years.
+
+| `--quantities` name | dims | what it is |
+|---|---|---|
+| `ohca` | (year,) | monthly area-integrated anomaly (window baseline), annual-averaged |
+| `ohu` | (year,) | month-to-month tendency of the integral, annual-averaged; NaN-seeded at t0 |
+| `ohca_trend` | scalar | OLS slope of the annual integral over the window |
+| `ohu_trend` | scalar | OLS slope of the annual tendency over the window |
+| `map` | (time, lat, lon) | per-cell monthly anomaly (window baseline) |
+
+The integral-based quantities are **extensive** — the per-area submission field integrated over the footprint (e.g. TJ from a TJ/m² field), with the trends and tendency carrying the matching per-year and per-month scaling; `map` stays in the submission's per-area unit. Turning these into per-area target densities (OHCA in J/m², OHU in W/m², and so on) is the downstream packaging step's job, done from the geometry and constants below.
+
+### Output
+
+One NetCDF per level, `derive_<tag>_<level>.nc`: each requested quantity plus its `_sd` companion (omitted under `--no-ensemble`), with header attrs `level`, `area_m2`, `volume_m3` (= area × the level's nominal thickness), the physical constants `cp0`/`rho0` (carried from the submissions when present), and `provenance_tag` / `provenance_link`. The factory emits these extensive quantities and geometry; packaging derives the intensive per-area densities from them.
 
 ## Usage
 
@@ -30,7 +54,7 @@ Described in `Dockerfile` to generate a containerized environment; make a simila
 
 ### Test
 
-Tests can be run on your machine in the containerized environment:
+Tests live in `tests/` and run under pytest — in the containerized environment:
 
 ```
 docker image build -t ohc_derive:test .
@@ -39,24 +63,25 @@ docker container run -v $(pwd):/app ohc_derive:test pytest
 
 ### Run
 
-See `derive.slurm` for a real example of running this on blanca at CU.
+See `derive.slurm` for a real example of running this on blanca at CU. With the ensemble on (the default), each constituent's `OHCENS_` sibling **must** sit next to its `OHC_` file or the loader exits, and every quantity gets a collapsed `_sd`. `--no-ensemble` is the central-only path (mean field, no `_sd`); central values are identical either way.
 
-With the ensemble on (the default), the `OHCENS_` sibling **must** exist next to the submission or the loader raises `FileNotFoundError`, and every ensemble transform (all but `area`) gets a collapsed `<var>_sd`. Naming a transform in `--keep-members` instead outputs its **raw members** as `<var>_ens` (XOR with `_sd`) — for a consumer that reduces the ensemble itself *after* a later nonlinear step (the spread of a yearly mean, say, which the collapsed `_sd` can't give). Memory is the caller's call: `anomaly`'s per-member form is a full `(member, time, lat, lon)` stack (~7 GB transient, ~20 GB peak), so run any ensemble path inside your job allocation. `--no-ensemble` is the fast central-only path; central values are byte-identical either way. Group attrs `ensemble` (`1`/`0`) and `members_kept` record what was done.
+#### run.py options
 
-#### derive.py options
-
-All configuration is on the command line — no env, no config file. The available transforms are the registry in [`transforms.py`](transforms.py) (`transforms.REGISTRY`).
+All configuration is on the command line — no env, no config file. The available quantities are `temporal_transforms.REGISTRY`; the mask prescriptions are `masks.REGISTRY`.
 
 | option | default | effect |
 |---|---|---|
-| `SUBMISSION.nc` (positional) | *(required)* | a published `OHC_` submission NetCDF (posterior-mean OHC, TJ/m², mask applied as NaN). |
-| `--tag` | *(required)* | provenance tag: the **run token** in the filename (`derive_<tag>_<period>_lev<layer>.nc`) **and** the `provenance_tag` header attr. Whitespace-stripped, never lowercased — must match the provenance record char-for-char. |
+| `SUBMISSION.nc …` (positional) | *(required)* | the constituent `OHC_` submissions for the level, one per native constituent; the `OHCENS_` member siblings are found automatically. |
+| `--level` | *(required)* | the synthetic level to build (`levels.LEVELS`), e.g. `0_2000`. |
+| `--bathy` | *(required)* | standard bathymetry NetCDF on the common grid. |
+| `--quantities` | *(required)* | comma list from `ohca,ohu,ohca_trend,ohu_trend,map`. Unknown names error. |
+| `--mask` | `fully_wet_nan` | cross-layer mask prescription (`masks.REGISTRY`). |
+| `--time-window` | *(all years)* | `YEAR0:YEAR1` — the anomaly baseline and the trend-fit years. |
+| `--no-ensemble` | off (ensemble **on**) | mean field only — skip the `_sd` companions and do not read the `OHCENS_` siblings. |
+| `--tag` | *(required)* | provenance tag: the **run token** in the filename (`derive_<tag>_<level>.nc`) **and** the `provenance_tag` header attr. Whitespace-stripped, never lowercased — must match the provenance record char-for-char. |
 | `--provenance-link` | *(none)* | URL/path to the provenance record; written to the `provenance_link` header attr. |
-| `--transforms` | `all` | comma list of `timemean,trend,integral,integral_anom,integral_tendency,anomaly,area`, or `all`. Unknown names error. |
-| `--no-ensemble` | off (ensemble **on**) | central estimate only — skip the `_sd` companions and do **not** read the `OHCENS_` sibling. |
-| `--keep-members` | *(none)* | comma list of transforms (or `all`) to output as raw members `<var>_ens` instead of the collapsed `<var>_sd` (XOR). Ensemble transforms only, and must be among `--transforms`; anything else (incl. with `--no-ensemble`) errors. |
 | `--out` | `.` | output directory. |
 
-## Adding a transform
+## Adding a quantity or a mask
 
-Write `f(field, product) -> Dataset` that addresses the field by dimension name (so it stays agnostic to the leading `member` axis), give its output variables `units`/`long_name`, and register it in `transforms.REGISTRY` with an `ensemble` flag. The wrapper and runner do the rest — no other file changes.
+A **quantity**: write a recipe `f(primitives, window) -> DataArray(realization, …)` over the helpers in [`temporal_transforms.py`](temporal_transforms.py) and register it in `temporal_transforms.REGISTRY`. A **mask prescription**: write `f(level, constituents, reference_bathy) -> (masked, exclude)` and register it in `masks.REGISTRY`. In both cases the runner and the combine do the rest — no other file changes.
