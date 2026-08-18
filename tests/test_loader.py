@@ -1,42 +1,105 @@
-"""Loader: .nc round-trip, cell_area regeneration, usable mask, sibling resolution."""
+"""loader: sibling resolution, the realization stack, submission/bathy reads, and the blob write."""
+import types
+
 import numpy as np
 import pytest
+import xarray as xr
 
 import loader
+import levels
+import conftest
 
 
-def test_load_basic(write_pair):
-    sub, info = write_pair()
-    p = loader.load_product(sub, with_ensemble=True)
-    assert p["ohc"].dims == ("time", "lat", "lon")
-    assert "ohc_ens" in p
-    assert p["ohc_ens"].dims == ("member", "time", "lat", "lon")
-    assert p["cell_area"].dims == ("lat", "lon")
-    assert bool((p["cell_area"] > 0).all())
-    assert np.allclose(p["ohc"].transpose("time", "lat", "lon").values,
-                       info["mean"], atol=1e-4, equal_nan=True)
+def _write_ohc(path, tag, cp0=3989.0, rho0=1030.0):
+    time = conftest.months(3)
+    data = np.arange(conftest.NLON * conftest.NLAT * 3, dtype="float64").reshape(
+        conftest.NLON, conftest.NLAT, 3)
+    ds = xr.Dataset({"DATA": (("LONGITUDE", "LATITUDE", "TIME"), data)},
+                    coords={"LONGITUDE": conftest.LON, "LATITUDE": conftest.LAT, "TIME": time})
+    ds.attrs.update({"mapped_layer": tag, "cp0": cp0, "rho0": rho0})
+    ds.to_netcdf(path)
 
 
-def test_usable_from_nan(write_pair):
-    sub, _ = write_pair(nan_cell=(0, 0))
-    p = loader.load_product(sub, with_ensemble=False)
-    assert not bool(p["usable"].values[0, 0])
-    assert bool(p["usable"].values[1, 1])
+def _write_ohcens(path, n_member=3):
+    time = conftest.months(3)
+    data = np.zeros((n_member, conftest.NLON, conftest.NLAT, 3), dtype="float64")
+    for m in range(n_member):
+        data[m] = m + 1
+    ds = xr.Dataset({"DATA": (("MEMBER", "LONGITUDE", "LATITUDE", "TIME"), data)},
+                    coords={"LONGITUDE": conftest.LON, "LATITUDE": conftest.LAT, "TIME": time})
+    ds.to_netcdf(path)
 
 
-def test_no_ensemble_skips_sibling(write_pair):
-    sub, _ = write_pair(write_sibling=True)
-    p = loader.load_product(sub, with_ensemble=False)
-    assert "ohc_ens" not in p
+def test_member_sibling():
+    assert loader._member_sibling("/x/OHC_a.nc").endswith("OHCENS_a.nc")
+    assert loader._member_sibling("/x/bar.nc") is None
 
 
-def test_missing_sibling_raises(write_pair):
-    sub, _ = write_pair(write_sibling=False)
-    with pytest.raises(FileNotFoundError):
-        loader.load_product(sub, with_ensemble=True)
+def test_stack_mean_only():
+    mean = conftest.const_field(5.0).isel(realization=0)             # (time, lat, lon)
+    out = loader._stack(mean, None)
+    assert out.sizes["realization"] == 1
+    assert np.allclose(out.isel(realization=0).values, 5.0)
 
 
-def test_sibling_name_resolution():
-    assert loader.ensemble_sibling("/a/b/OHC_x_y.nc").endswith("/OHCENS_x_y.nc")
-    with pytest.raises(ValueError):
-        loader.ensemble_sibling("/a/b/not_a_submission.nc")
+def test_stack_puts_mean_first_then_members():
+    mean = conftest.const_field(5.0).isel(realization=0)
+    members = conftest.const_field(9.0, n_real=3)                   # (realization, time, lat, lon)
+    out = loader._stack(mean, members)
+    assert list(out["realization"].values) == [0, 1, 2, 3]
+    assert np.allclose(out.isel(realization=0).values, 5.0)         # mean field
+    assert np.allclose(out.isel(realization=slice(1, None)).values, 9.0)
+
+
+def test_load_submissions_mean_only(tmp_path):
+    _write_ohc(str(tmp_path / "OHC_x.nc"), tag="15_20")
+    subs = loader.load_submissions([str(tmp_path / "OHC_x.nc")], with_members=False)
+    assert "15_20" in subs
+    fv = subs["15_20"]["field_value"]
+    assert fv.dims == ("realization", "time", "lat", "lon")
+    assert fv.sizes["realization"] == 1
+    assert float(subs["15_20"]["attrs"]["cp0"]) == 3989.0
+
+
+def test_load_submissions_with_members(tmp_path):
+    _write_ohc(str(tmp_path / "OHC_x.nc"), tag="15_20")
+    _write_ohcens(str(tmp_path / "OHCENS_x.nc"), n_member=3)
+    subs = loader.load_submissions([str(tmp_path / "OHC_x.nc")], with_members=True)
+    fv = subs["15_20"]["field_value"]
+    assert fv.sizes["realization"] == 4                            # mean + 3 members
+    assert np.allclose(fv.isel(realization=1).values, 1.0)         # member 1's constant
+
+
+def test_load_submissions_missing_member_sibling_exits(tmp_path):
+    _write_ohc(str(tmp_path / "OHC_x.nc"), tag="15_20")            # no OHCENS_ sibling written
+    with pytest.raises(SystemExit):
+        loader.load_submissions([str(tmp_path / "OHC_x.nc")], with_members=True)
+
+
+def test_load_bathy_depth(tmp_path):
+    p = str(tmp_path / "bathy.nc")
+    xr.Dataset({"depth": (("lat", "lon"), [[1000.0, 2000.0, 3000.0], [1000.0, 1000.0, 1000.0]])},
+               coords={"lat": conftest.LAT, "lon": conftest.LON}).to_netcdf(p)
+    b = loader.load_bathy(p)
+    assert b.dims == ("lat", "lon")
+    assert float(b.isel(lat=0, lon=1)) == 2000.0
+
+
+def test_load_bathy_negates_elevation_and_renames(tmp_path):
+    p = str(tmp_path / "elev.nc")
+    xr.Dataset({"elevation": (("latitude", "longitude"),
+                              [[-1000.0, -2000.0, -3000.0], [-1000.0, -1000.0, -1000.0]])},
+               coords={"latitude": conftest.LAT, "longitude": conftest.LON}).to_netcdf(p)
+    b = loader.load_bathy(p)
+    assert b.dims == ("lat", "lon")
+    assert float(b.isel(lat=0, lon=1)) == 2000.0                   # negated to positive depth
+
+
+def test_write_blob_round_trip(tmp_path):
+    cfg = types.SimpleNamespace(out=str(tmp_path), tag="TESTTAG", provenance_link="http://prov")
+    blob = xr.Dataset({"ohca": ("year", [1.0, 2.0])}, coords={"year": [2001, 2002]})
+    path = loader.write_blob(blob, levels.get("0_300"), cfg)
+    back = xr.open_dataset(path)
+    assert back.attrs["level"] == "0_300"
+    assert back.attrs["provenance_tag"] == "TESTTAG"
+    assert back.attrs["provenance_link"] == "http://prov"
