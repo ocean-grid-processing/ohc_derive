@@ -10,11 +10,11 @@ import conftest
 
 # --- helpers ---------------------------------------------------------------
 
-def test_in_window_selects_years():
-    s = conftest.series(np.zeros((1, 36)), start_year=2001)          # 2001-2003
-    assert T._in_window(s, (2002, 2002)).sizes["time"] == 12
-    assert T._in_window(s, (2002, 2003)).sizes["time"] == 24
-    assert T._in_window(s, None).sizes["time"] == 36
+def test_in_window_selects_years_on_the_monthly_axis():
+    s = conftest.series(np.zeros((1, 36)), start_year=2001)          # monthly, 2001-2003
+    assert T._in_window(s, "time", ("2002", "2002")).sizes["time"] == 12
+    assert T._in_window(s, "time", ("2002", "2003")).sizes["time"] == 24
+    assert T._in_window(s, "time", None).sizes["time"] == 36
 
 
 def test_anomaly_of_constant_is_zero():
@@ -60,17 +60,31 @@ def _annual_da(vals):
                         coords={"realization": [0], "year": years})
 
 
+def test_in_window_selects_years_on_the_annual_axis():
+    annual = _annual_da([1.0, 2.0, 3.0, 4.0])                        # years 2001..2004
+    clipped = T._in_window(annual, "year", (2002, 2003))
+    assert list(clipped["year"].values) == [2002, 2003]
+
+
 def test_slope_recovers_a_linear_trend():
-    slope = T._slope(_annual_da(3.0 + 2.0 * np.arange(10)), None)
+    slope = T._slope(_annual_da(3.0 + 2.0 * np.arange(10)), "year")
     assert np.isclose(slope.item(), 2.0)
 
 
-def test_slope_respects_the_window():
+def test_slope_skips_a_nan_leading_year():
+    # a slope-1 line with the leading year voided; the fit must recover 1, not the ~0.25 the old
+    # code gave when the denominator counted a year the numerator dropped
+    annual = _annual_da([np.nan, 10.0, 11.0])
+    assert np.isclose(T._slope(annual, "year").item(), 1.0)
+
+
+def test_windowing_then_slope_fits_the_selected_years():
     years = np.arange(2001, 2011)
     vals = np.where(years <= 2004, 5.0, 5.0 + (years - 2004) * 2.0)  # flat, then a ramp
     annual = _annual_da(vals)
-    assert np.isclose(T._slope(annual, (2001, 2004)).item(), 0.0)    # flat stretch only
-    assert abs(T._slope(annual, None).item()) > 0.1                  # ramp pulls the full fit
+    flat = T._in_window(annual, "year", (2001, 2004))
+    assert np.isclose(T._slope(flat, "year").item(), 0.0)           # flat stretch only
+    assert abs(T._slope(annual, "year").item()) > 0.1              # whole record: ramp pulls the fit
 
 
 # --- recipes ---------------------------------------------------------------
@@ -89,17 +103,25 @@ def test_ohca_is_annual_of_anomaly():
     assert np.allclose(got.values, expect.values)
 
 
-def test_ohu_is_annual_of_tendency():
+def test_ohu_voids_its_leading_year():
     p = _primitives()
     got = T.ohu(p, None)
     assert got.dims == ("realization", "year")
-    assert np.allclose(got.values, T._annual(T._tendency(p["integral"])).values, equal_nan=True)
+    assert np.allclose(got.values, T._annual(T._tendency(p["integral"]), complete=True).values,
+                       equal_nan=True)
+    assert bool(got.isel(year=0).isnull().all())                   # the dropped leading step voids year 0
 
 
 def test_trends_reduce_to_one_value_per_realization():
     p = _primitives()
     assert T.ohca_trend(p, None).dims == ("realization",)
     assert T.ohu_trend(p, None).dims == ("realization",)
+
+
+def test_trends_carry_their_step_as_per():
+    p = _primitives()
+    assert T.ohca_trend(p, None).attrs["per"] == "year"
+    assert T.ohu_trend(p, None).attrs["per"] == "year"
 
 
 def test_gridded_anomaly_keeps_the_grid_and_demeans_per_cell():

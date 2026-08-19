@@ -47,6 +47,8 @@ def combine_synthetic(per_constituent, level, area_m2, constants):
     data = {}
     for q in quantities:
         data[q] = _nfac_sum(per_constituent, contributors, q, "value")
+        # arithmetic drops attrs; carry the quantity's own metadata (e.g. a trend's `per`) from a source
+        data[q].attrs = dict(per_constituent[contributors[0].tag][q]["value"].attrs)
         sd = _nfac_sum(per_constituent, contributors, q, "sd")
         if sd is not None:
             data[q + "_sd"] = sd

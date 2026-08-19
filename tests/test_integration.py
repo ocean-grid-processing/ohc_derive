@@ -83,6 +83,25 @@ def test_dry_and_excluded_cells_through_the_full_pipeline(tmp_path):
     assert bool(blob["map"].isel(lat=1, lon=0).isnull().all())             # 15_20 gap -> excluded
 
 
+def test_ohu_voids_leading_year_and_trend_skips_it(tmp_path):
+    # integral_i(t) = t^2 * A, so tendency = (2t-1)*A (leading step NaN). Over 3 years the annual
+    # tendency is [NaN, 34A, 58A]; complete=True voids 2001, and the slope fits only 2002-2003 ->
+    # 24A/yr. n_fac combine for 0_300 (3 + 1) scales both: ohu = [NaN, 136A, 232A], ohu_trend = 96A.
+    def sq(n_time=36):
+        t = np.arange(float(n_time)) ** 2
+        arr = t[None, :, None, None] * np.ones((1, n_time, conftest.NLAT, conftest.NLON))
+        return conftest.field(arr, conftest.months(n_time, start_year=2001))
+
+    subs = {"15_20": {"field_value": sq(), "attrs": attrs()},
+            "15_300": {"field_value": sq(), "attrs": attrs()}}
+    blob = run.run_level(levels.get("0_300"), subs, DEEP, cfg(["ohu", "ohu_trend"], None, str(tmp_path)))
+    a = A()
+    assert np.isnan(blob["ohu"].values[0])
+    assert np.allclose(blob["ohu"].values[1:], [136 * a, 232 * a])
+    assert np.isclose(float(blob["ohu_trend"]), 96 * a)             # 24A if the NaN year biased the fit
+    assert blob["ohu_trend"].attrs["per"] == "year"
+
+
 def test_0_2000_five_constituent_combine(tmp_path):
     lv = levels.get("0_2000")                                              # sum(n_fac) = 9
     subs = {c.tag: {"field_value": ramp(1.0, 24), "attrs": attrs()} for c in lv.contributors}

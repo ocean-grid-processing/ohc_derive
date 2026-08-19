@@ -69,3 +69,11 @@ def test_combine_synthetic_builds_dataset_and_stamps_geometry():
 def test_combine_synthetic_mean_only_omits_sd():
     blob = combine.combine_synthetic(_per(2.0, None, 7.0, None), levels.get("0_300"), 1000.0, {})
     assert "ohca" in blob.data_vars and "ohca_sd" not in blob.data_vars
+
+
+def test_combine_carries_quantity_attrs():
+    # a trend's `per` attr must survive the n_fac fold so packaging can read it off the blob
+    per = {"15_20": {"ohca_trend": {"value": xr.DataArray(2.0, attrs={"per": "year"}), "sd": None}},
+           "15_300": {"ohca_trend": {"value": xr.DataArray(7.0, attrs={"per": "year"}), "sd": None}}}
+    blob = combine.combine_synthetic(per, levels.get("0_300"), 1000.0, {})
+    assert blob["ohca_trend"].attrs["per"] == "year"
