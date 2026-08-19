@@ -84,4 +84,4 @@ All configuration is on the command line — no env, no config file. The availab
 
 ## Adding a quantity or a mask
 
-A **quantity**: write a recipe `f(primitives, window) -> DataArray(realization, …)` over the helpers in [`temporal_transforms.py`](temporal_transforms.py) and register it in `temporal_transforms.REGISTRY`. A **mask prescription**: write `f(level, constituents, reference_bathy) -> (masked, exclude)` and register it in `masks.REGISTRY`. In both cases the runner and the combine do the rest — no other file changes.
+A **quantity**: write a recipe `f(primitives, window) -> DataArray(realization, …)` over the helpers in [`temporal_transforms.py`](temporal_transforms.py) and register it in `temporal_transforms.REGISTRY`. A **mask prescription**: write `f(level, constituents, reference_bathy) -> (masked, footprint)` and register it in `masks.REGISTRY`. In both cases the runner and the combine do the rest — no other file changes.
