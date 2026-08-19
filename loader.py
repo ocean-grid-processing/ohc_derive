@@ -80,6 +80,7 @@ def write_blob(blob, level, cfg):
     """Write one synthetic level's dataset to NetCDF, tagged with cfg.tag and provenance link."""
     os.makedirs(cfg.out, exist_ok=True)
     blob.attrs["level"] = level.name
+    blob.attrs["time_window"] = "%d-%d" % cfg.time_window if cfg.time_window else "all"
     blob.attrs["provenance_tag"] = cfg.tag
     if cfg.provenance_link is not None:
         blob.attrs["provenance_link"] = cfg.provenance_link

@@ -88,10 +88,19 @@ def test_load_bathy_reads_etopo_rose(tmp_path):
 
 
 def test_write_blob_round_trip(tmp_path):
-    cfg = types.SimpleNamespace(out=str(tmp_path), tag="TESTTAG", provenance_link="http://prov")
+    cfg = types.SimpleNamespace(out=str(tmp_path), tag="TESTTAG", provenance_link="http://prov",
+                                time_window=(2005, 2024))
     blob = xr.Dataset({"ohca": ("year", [1.0, 2.0])}, coords={"year": [2001, 2002]})
     path = loader.write_blob(blob, levels.get("0_300"), cfg)
     back = xr.open_dataset(path)
     assert back.attrs["level"] == "0_300"
+    assert back.attrs["time_window"] == "2005-2024"
     assert back.attrs["provenance_tag"] == "TESTTAG"
     assert back.attrs["provenance_link"] == "http://prov"
+
+
+def test_write_blob_window_all_when_none(tmp_path):
+    cfg = types.SimpleNamespace(out=str(tmp_path), tag="T", provenance_link=None, time_window=None)
+    blob = xr.Dataset({"ohca": ("year", [1.0])}, coords={"year": [2001]})
+    back = xr.open_dataset(loader.write_blob(blob, levels.get("0_300"), cfg))
+    assert back.attrs["time_window"] == "all"
