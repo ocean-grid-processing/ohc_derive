@@ -67,24 +67,35 @@ def apply(name, level, constituents, reference_bathy, out_dir="."):
     if name not in REGISTRY:
         raise SystemExit("unknown mask prescription %r; known: %s" % (name, list(REGISTRY)))
     masked, exclude = REGISTRY[name](level, constituents, reference_bathy)
-    _dump_png(exclude, level.name, name, out_dir)
+    _dump_png(exclude, reference_bathy, level.name, name, out_dir)
     area = grid.cell_area(exclude["lat"].values, exclude["lon"].values)
     return masked, float(area.where(~exclude).sum())
 
 
-def _dump_png(exclude, level_name, mask_name, out_dir):
+def _dump_png(exclude, reference_bathy, level_name, mask_name, out_dir):
     try:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+        from matplotlib.colors import ListedColormap
+        from matplotlib.patches import Patch
     except Exception:
         return
-    include = (~exclude).astype("int8")
+    # three classes: ocean we kept (white), ocean we dropped (black), land (grey, from the bathy)
+    category = np.where(exclude.values, 0, 1)               # 0 dropped, 1 kept
+    category[reference_bathy.values < 0] = 2               # negative depth = above sea level -> land
+    cmap = ListedColormap(["black", "white", "lightgrey"])
+
     fig, ax = plt.subplots(figsize=(9, 4.5))
-    ax.pcolormesh(include["lon"], include["lat"], include, shading="auto", cmap="Greys_r")
+    ax.pcolormesh(exclude["lon"], exclude["lat"], category, shading="auto",
+                  cmap=cmap, vmin=-0.5, vmax=2.5)
     ax.set_title("%s footprint (%s)" % (level_name, mask_name))
     ax.set_xlabel("lon")
     ax.set_ylabel("lat")
+    ax.legend(handles=[Patch(facecolor="white", edgecolor="grey", label="in footprint"),
+                       Patch(facecolor="black", label="masked out"),
+                       Patch(facecolor="lightgrey", label="land")],
+              loc="lower left", fontsize=8, framealpha=0.9)
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, "mask_%s_%s.png" % (level_name, mask_name))
     fig.tight_layout()
