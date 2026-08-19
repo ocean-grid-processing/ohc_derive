@@ -1,5 +1,7 @@
 #!/bin/bash
-#SBATCH --qos=preemptable
+#SBATCH --qos=blanca-giglio
+#SBATCH --account=blanca-giglio
+#SBATCH --partition=blanca-giglio
 #SBATCH --export=NONE
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
@@ -8,7 +10,7 @@
 #SBATCH --output=%x.%j.out
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=katie.mills@colorado.edu
-#SBATCH --mem=64GB
+#SBATCH --mem=256GB
 #SBATCH --exclude=blanca-g6-u21
 
 module purge
@@ -17,16 +19,16 @@ conda activate ohc_crosscheck
 
 cd $SLURM_SUBMIT_DIR
 python run.py \
-    /data/me4oh/OHC_LocalGP_15_20.nc \
-    /data/me4oh/OHC_LocalGP_15_300.nc \
-    /data/me4oh/OHC_LocalGP_300_700.nc \
-    /data/me4oh/OHC_LocalGP_700_1850.nc \
-    /data/me4oh/OHC_LocalGP_1800_1850.nc \
+    /scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev15_20_expC_prod_260810.nc \
+    /scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev15_300_expC_prod_260810.nc \
+    /scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev300_700_expC_prod_260810.nc \
+    /scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev700_1850_expC_prod_260810.nc \
+    /scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev1800_1850_expC_prod_260810.nc \
     --level 0_2000 \
-    --bathy /data/standard/bathy_1deg.nc \
+    --bathy /scratch/alpine/wimi7695/ohc_prod/params/etopo60.cdf \
     --quantities ohca,ohu,ohca_trend,ohu_trend \
     --mask fully_wet_nan \
     --time-window 2005:2024 \
     --tag dev \
     --provenance-link https://example.dev.com \
-    --out /data/derive_out
+    --out .
