@@ -76,23 +76,15 @@ def test_load_submissions_missing_member_sibling_exits(tmp_path):
         loader.load_submissions([str(tmp_path / "OHC_x.nc")], with_members=True)
 
 
-def test_load_bathy_depth(tmp_path):
-    p = str(tmp_path / "bathy.nc")
-    xr.Dataset({"depth": (("lat", "lon"), [[1000.0, 2000.0, 3000.0], [1000.0, 1000.0, 1000.0]])},
-               coords={"lat": conftest.LAT, "lon": conftest.LON}).to_netcdf(p)
+def test_load_bathy_reads_etopo_rose(tmp_path):
+    # etopo60.cdf layout: ROSE relief (metres, negative below sea level) on ETOPO60Y/ETOPO60X [lat, lon].
+    p = str(tmp_path / "etopo.nc")
+    xr.Dataset({"ROSE": (("ETOPO60Y", "ETOPO60X"),
+                         [[-1000.0, -2000.0, -3000.0], [-1000.0, -1000.0, -1000.0]])},
+               coords={"ETOPO60Y": conftest.LAT, "ETOPO60X": conftest.LON}).to_netcdf(p)
     b = loader.load_bathy(p)
-    assert b.dims == ("lat", "lon")
-    assert float(b.isel(lat=0, lon=1)) == 2000.0
-
-
-def test_load_bathy_negates_elevation_and_renames(tmp_path):
-    p = str(tmp_path / "elev.nc")
-    xr.Dataset({"elevation": (("latitude", "longitude"),
-                              [[-1000.0, -2000.0, -3000.0], [-1000.0, -1000.0, -1000.0]])},
-               coords={"latitude": conftest.LAT, "longitude": conftest.LON}).to_netcdf(p)
-    b = loader.load_bathy(p)
-    assert b.dims == ("lat", "lon")
-    assert float(b.isel(lat=0, lon=1)) == 2000.0                   # negated to positive depth
+    assert b.dims == ("lat", "lon")                                # Y -> lat, X -> lon
+    assert float(b.isel(lat=0, lon=1)) == 2000.0                   # relief negated to positive depth
 
 
 def test_write_blob_round_trip(tmp_path):

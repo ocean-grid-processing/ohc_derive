@@ -64,30 +64,16 @@ def load_submissions(paths, with_members=True):
 
 
 def load_bathy(path):
-    """Standard bathymetry -> DataArray(lat, lon), seafloor depth in metres, positive down.
+    """The standard bathymetry (etopo60.cdf) -> DataArray(lat, lon), seafloor depth in metres.
 
-    Reads a `depth`/`bathymetry`/`elevation` variable (or the sole 2-D variable) and orients it to
-    (lat, lon). If it reads as elevation (mostly negative), it is negated to depth. The exact variable
-    name and sign convention of the standard file may need adjusting here when it is finalised.
+    This is the same file ohc_ingest pins the mapping grid to: relief variable ROSE (metres, negative
+    below sea level) on dims ETOPO60Y (latitude) and ETOPO60X (longitude), row-major [lat, lon]. We
+    read it as-is, so lat/lon come out in the mapping-grid order the submissions also carry, and negate
+    the relief to positive-down depth to match ingest's seabed convention.
     """
-    ds = xr.open_dataset(path)
-    name = next((v for v in ("depth", "bathymetry", "bathy", "elevation", "z") if v in ds.data_vars), None)
-    if name is None:
-        two_d = [v for v in ds.data_vars if ds[v].ndim == 2]
-        if len(two_d) != 1:
-            raise SystemExit("can't identify the bathy variable in %s (data_vars: %s)"
-                             % (path, list(ds.data_vars)))
-        name = two_d[0]
-    da = ds[name]
-    rename = {}
-    for d in da.dims:
-        low = str(d).lower()
-        if low.startswith("lat"):
-            rename[d] = "lat"
-        elif low.startswith("lon"):
-            rename[d] = "lon"
-    da = da.rename(rename).transpose("lat", "lon").astype("float64")
-    return -da if float(da.mean()) < 0 else da
+    da = xr.open_dataset(path)["ROSE"]
+    da = da.rename({"ETOPO60Y": "lat", "ETOPO60X": "lon"}).transpose("lat", "lon").astype("float64")
+    return -da
 
 
 def write_blob(blob, level, cfg):
