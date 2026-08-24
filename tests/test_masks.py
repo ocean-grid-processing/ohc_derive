@@ -6,6 +6,7 @@ fully_wet_nan cases: (0,0) all fully wet, (0,1) 300_700 intersecting, (0,2) 300_
 """
 import numpy as np
 import pytest
+import xarray as xr
 
 import masks
 import levels
@@ -211,6 +212,22 @@ def test_apply_contiguous_area_and_tapered_volume(tmp_path):
     cell = float(a.isel(lat=0, lon=1))
     assert np.isclose(area, float(a.sum()))                         # all six survive
     assert np.isclose(volume, (float(a.sum()) - cell) * 700.0 + cell * 300.0)   # one cell tapered
+
+
+def test_apply_writes_coverage_diagnostics(tmp_path):
+    # 0_2000: 300_700 gap at (0,0) truncates the column to 300 m; (0,1) keeps the full 2000 m.
+    lv = levels.get("0_2000")
+    cons5 = _cons5(nan_300700=[(0, 0)])
+    bathy = conftest.bathy([[2500.0, 3000.0, 3000.0], [3000.0, 3000.0, 3000.0]])
+    masks.apply("contiguous_from_top", lv, cons5, bathy, out_dir=str(tmp_path), require_top=300)
+
+    cov = xr.open_dataset(str(tmp_path / "coverage_0_2000_contiguous_from_top.nc"))
+    # (0,0): kept 15_20+15_300 = 300 m; bathy 2500 capped at layer bottom 2000 -> uncaptured 2000-300
+    assert np.isclose(float(cov["kept_thickness"].isel(lat=0, lon=0)), 300.0)
+    assert np.isclose(float(cov["uncaptured_thickness"].isel(lat=0, lon=0)), 1700.0)
+    # (0,1): full column kept = 2000 m; bathy 3000 capped at 2000 -> nothing uncaptured
+    assert np.isclose(float(cov["kept_thickness"].isel(lat=0, lon=1)), 2000.0)
+    assert np.isclose(float(cov["uncaptured_thickness"].isel(lat=0, lon=1)), 0.0)
 
 
 def test_apply_unknown_mask_exits(tmp_path):

@@ -8,9 +8,10 @@ bounds), the standard bathy, and the required-top depth, and returns:
     footprint = DataArray(lat, lon) bool, True where the level survives (the cells the area counts)
     height    = DataArray(lat, lon) float, the effective column height (metres) per cell (0 outside)
 
-`apply` runs the named prescription, dumps the footprint png, and returns `(masked, area_m2, volume_m3)`
-— the summed cell area of the footprint, and the cell-area-weighted sum of the per-cell height. So land
-and dropped columns don't inflate the per-area densities, and the volume tapers with the kept column.
+`apply` runs the named prescription, dumps the footprint png and a `coverage_<level>_<mask>.nc`
+(per-cell kept and uncaptured thickness), and returns `(masked, area_m2, volume_m3)` — the summed cell
+area of the footprint, and the cell-area-weighted sum of the per-cell height. So land and dropped
+columns don't inflate the per-area densities, and the volume tapers with the kept column.
 
 Two prescriptions:
 
@@ -147,8 +148,35 @@ def apply(name, level, constituents, reference_bathy, out_dir=".", require_top=N
         raise SystemExit("unknown mask prescription %r; known: %s" % (name, list(REGISTRY)))
     masked, footprint, height = REGISTRY[name](level, constituents, reference_bathy, require_top)
     _dump_png(footprint, reference_bathy, level.name, name, out_dir)
+    _dump_coverage(footprint, height, reference_bathy, level, name, out_dir)
     area = grid.cell_area(footprint["lat"].values, footprint["lon"].values)
     return masked, float(area.where(footprint).sum()), float((area * height).sum())
+
+
+def _dump_coverage(footprint, height, reference_bathy, level, mask_name, out_dir):
+    """Sibling .nc to the mask png, on the product grid, with two per-cell diagnostics (NaN off-footprint):
+
+      kept_thickness       — the n_fac-weighted column thickness kept at the cell (the volume's height).
+      uncaptured_thickness — in-layer water the kept column didn't reach: from the bottom of the kept
+                             column (level.low + kept_thickness) down to min(bathy, layer bottom), >= 0.
+    """
+    fp = footprint.values
+    column_bottom = level.low + height.values                        # bottom of the deepest kept layer
+    water_bottom = np.minimum(reference_bathy.values, float(level.high))
+    uncaptured = np.clip(water_bottom - column_bottom, 0.0, None)
+
+    ds = xr.Dataset(
+        {"kept_thickness": (("lat", "lon"), np.where(fp, height.values, np.nan)),
+         "uncaptured_thickness": (("lat", "lon"), np.where(fp, uncaptured, np.nan))},
+        coords={"lat": footprint["lat"], "lon": footprint["lon"]})
+    ds["kept_thickness"].attrs = {"units": "m", "long_name": "kept column thickness"}
+    ds["uncaptured_thickness"].attrs = {
+        "units": "m", "long_name": "in-layer water below the kept column, to min(bathy, layer bottom)"}
+    ds.attrs.update({"level": level.name, "mask": mask_name})
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, "coverage_%s_%s.nc" % (level.name, mask_name))
+    ds.to_netcdf(path)
+    print("wrote", path)
 
 
 def _dump_png(footprint, reference_bathy, level_name, mask_name, out_dir):
