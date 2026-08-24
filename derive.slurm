@@ -26,7 +26,8 @@ python run.py \
 /scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev1800_1850_expC_prod_260810.nc \
     --level 0_2000 \
     --bathy /scratch/alpine/wimi7695/ohc_prod/params/etopo60.cdf \
-    --quantities ohca \
+    --quantities ohca,ohu,ohca_trend,ohu_trend \
+    --mask contiguous_from_top \
     --time-window 2005:2024 \
     --mask fully_wet_nan \
     --tag dev-gcos-OP20260506 \

@@ -9,9 +9,9 @@ Step 5 — collapse. Per constituent, per quantity, split the `realization` axis
 Step 6 — combine. Fold the constituents into the synthetic level:
     value(q) = sum_i n_fac_i * value_i(q)
     sd(q)    = sum_i n_fac_i * sd_i(q)      worst-case, summed after the collapse
-into one dataset per level: each `q` and `q_sd`, plus the footprint area/volume and the physical
-constants as attributes (nominal volume = area * nominal thickness). Packaging turns the extensive
-quantities into per-area densities from these.
+into one dataset per level: each `q` and `q_sd`, plus the footprint area/volume (both from the mask
+step) and the physical constants as attributes. Packaging turns the extensive quantities into per-area
+densities from these.
 """
 import xarray as xr
 
@@ -39,8 +39,8 @@ def _nfac_sum(per_constituent, contributors, quantity, key):
     return sum(terms[1:], terms[0])
 
 
-def combine_synthetic(per_constituent, level, area_m2, constants):
-    """See step 6. -> xr.Dataset for one synthetic level."""
+def combine_synthetic(per_constituent, level, area_m2, volume_m3, constants):
+    """See step 6. -> xr.Dataset for one synthetic level. Area and volume come from the mask step."""
     contributors = level.contributors
     quantities = per_constituent[contributors[0].tag]        # same quantity set for every constituent
 
@@ -56,6 +56,6 @@ def combine_synthetic(per_constituent, level, area_m2, constants):
     blob = xr.Dataset(data)
     blob.attrs["level"] = level.name
     blob.attrs["area_m2"] = area_m2
-    blob.attrs["volume_m3"] = area_m2 * level.nominal_thickness
+    blob.attrs["volume_m3"] = volume_m3
     blob.attrs.update(constants)                              # cp0, rho0 (if the submissions carried them)
     return blob

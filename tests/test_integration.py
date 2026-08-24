@@ -45,8 +45,9 @@ def attrs():
     return {"cp0": 3989.0, "rho0": 1030.0}
 
 
-def cfg(quantities, window, out):
-    return types.SimpleNamespace(mask="fully_wet_nan", quantities=quantities, time_window=window, out=out)
+def cfg(quantities, window, out, mask="fully_wet_nan", require_top=None):
+    return types.SimpleNamespace(mask=mask, quantities=quantities, time_window=window,
+                                 require_top=require_top, out=out)
 
 
 def A():
@@ -100,6 +101,23 @@ def test_ohu_voids_leading_year_and_trend_skips_it(tmp_path):
     assert np.allclose(blob["ohu"].values[1:], [136 * a, 232 * a])
     assert np.isclose(float(blob["ohu_trend"]), 96 * a)             # 24A if the NaN year biased the fit
     assert blob["ohu_trend"].attrs["per"] == "year"
+
+
+def test_contiguous_from_top_tapers_the_volume(tmp_path):
+    # 0_700; 300_700 has a gap at (0,1), so that column truncates to 300 m while the rest keep 700 m.
+    subs = {
+        "15_20": {"field_value": conftest.const_field(1.0, n_time=12), "attrs": attrs()},
+        "15_300": {"field_value": conftest.const_field(1.0, n_time=12), "attrs": attrs()},
+        "300_700": {"field_value": conftest.const_field(1.0, n_time=12, nan_cells=[(0, 1)]),
+                    "attrs": attrs()},
+    }
+    # require_top is left to the level (0_700 -> 300); no flag override
+    blob = run.run_level(levels.get("0_700"), subs, DEEP,
+                         cfg(["ohca"], None, str(tmp_path), mask="contiguous_from_top"))
+    a = A()
+    cell = float(grid.cell_area(conftest.LAT, conftest.LON).isel(lat=0, lon=1))
+    assert np.isclose(blob.attrs["area_m2"], a)                    # all cells survive (top range present)
+    assert np.isclose(blob.attrs["volume_m3"], (a - cell) * 700.0 + cell * 300.0)   # one column tapered
 
 
 def test_0_2000_five_constituent_combine(tmp_path):

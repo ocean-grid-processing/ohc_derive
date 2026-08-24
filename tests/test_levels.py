@@ -20,6 +20,12 @@ def test_nominal_thickness(name, thickness):
     assert levels.get(name).nominal_thickness == thickness
 
 
+def test_require_top_is_the_top_300m_of_each_level():
+    # require_top is a thickness from the layer's own top; every level requires its top 300 m
+    for name in ("0_300", "0_700", "0_1000", "700_2000", "0_2000"):
+        assert levels.get(name).require_top == 300
+
+
 def test_get_unknown_exits():
     with pytest.raises(SystemExit):
         levels.get("3_4")

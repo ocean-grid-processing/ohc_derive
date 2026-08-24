@@ -19,6 +19,8 @@ class Contributor:
 class Level:
     name: str
     contributors: tuple
+    require_top: int    # metres of the layer's own top (from `low`) that must be defined for a cell to
+                        # survive under contiguous_from_top; the top 300 m of every layer
 
     @property
     def low(self):
@@ -35,15 +37,15 @@ class Level:
 
 
 LEVELS = [
-    Level("0_300",  (Contributor("15_20", 3, 15, 20), Contributor("15_300", 1, 15, 300))),
+    Level("0_300",  (Contributor("15_20", 3, 15, 20), Contributor("15_300", 1, 15, 300)), 300),
     Level("0_700",  (Contributor("15_20", 3, 15, 20), Contributor("15_300", 1, 15, 300),
-                     Contributor("300_700", 1, 300, 700))),
+                     Contributor("300_700", 1, 300, 700)), 300),
     Level("0_1000", (Contributor("15_20", 3, 15, 20), Contributor("15_300", 1, 15, 300),
-                     Contributor("300_700", 1, 300, 700), Contributor("700_1000", 1, 700, 1000))),
-    Level("700_2000", (Contributor("700_1850", 1, 700, 1850), Contributor("1800_1850", 3, 1800, 1850))),
+                     Contributor("300_700", 1, 300, 700), Contributor("700_1000", 1, 700, 1000)), 300),
+    Level("700_2000", (Contributor("700_1850", 1, 700, 1850), Contributor("1800_1850", 3, 1800, 1850)), 300),
     Level("0_2000", (Contributor("15_20", 3, 15, 20), Contributor("15_300", 1, 15, 300),
                      Contributor("300_700", 1, 300, 700), Contributor("700_1850", 1, 700, 1850),
-                     Contributor("1800_1850", 3, 1800, 1850))),
+                     Contributor("1800_1850", 3, 1800, 1850)), 300),
 ]
 
 _BY_NAME = {lv.name: lv for lv in LEVELS}

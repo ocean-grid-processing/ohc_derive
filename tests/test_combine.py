@@ -57,17 +57,18 @@ def test_nfac_sum_none_when_a_part_is_none():
 
 def test_combine_synthetic_builds_dataset_and_stamps_geometry():
     blob = combine.combine_synthetic(_per(2.0, 0.5, 7.0, 2.0), levels.get("0_300"),
-                                     area_m2=1000.0, constants={"cp0": 3989.0, "rho0": 1030.0})
+                                     area_m2=1000.0, volume_m3=250000.0,
+                                     constants={"cp0": 3989.0, "rho0": 1030.0})
     assert np.isclose(float(blob["ohca"]), 13.0)
     assert np.isclose(float(blob["ohca_sd"]), 3.5)
     assert blob.attrs["level"] == "0_300"
     assert np.isclose(blob.attrs["area_m2"], 1000.0)
-    assert np.isclose(blob.attrs["volume_m3"], 1000.0 * 300)       # area * nominal thickness
+    assert np.isclose(blob.attrs["volume_m3"], 250000.0)          # passed straight through from the mask
     assert np.isclose(blob.attrs["cp0"], 3989.0)
 
 
 def test_combine_synthetic_mean_only_omits_sd():
-    blob = combine.combine_synthetic(_per(2.0, None, 7.0, None), levels.get("0_300"), 1000.0, {})
+    blob = combine.combine_synthetic(_per(2.0, None, 7.0, None), levels.get("0_300"), 1000.0, 250000.0, {})
     assert "ohca" in blob.data_vars and "ohca_sd" not in blob.data_vars
 
 
@@ -75,5 +76,5 @@ def test_combine_carries_quantity_attrs():
     # a trend's `per` attr must survive the n_fac fold so packaging can read it off the blob
     per = {"15_20": {"ohca_trend": {"value": xr.DataArray(2.0, attrs={"per": "year"}), "sd": None}},
            "15_300": {"ohca_trend": {"value": xr.DataArray(7.0, attrs={"per": "year"}), "sd": None}}}
-    blob = combine.combine_synthetic(per, levels.get("0_300"), 1000.0, {})
+    blob = combine.combine_synthetic(per, levels.get("0_300"), 1000.0, 250000.0, {})
     assert blob["ohca_trend"].attrs["per"] == "year"
