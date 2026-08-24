@@ -21,12 +21,13 @@ The mean field and its members ride together on a leading `realization` axis (in
 
 ### Masking
 
-Cross-layer masking is pluggable (`masks.REGISTRY`); the default is `fully_wet_nan`. Per cell, each constituent is classified against the standard bathy as **fully wet** (floor ≥ its `bottom`), **intersecting** (its `top` ≤ floor < its `bottom`), or **dry** (floor < its `top`, or the bathy is NaN). Then, per cell:
+Cross-layer masking is pluggable (`masks.REGISTRY`); each prescription returns the masked constituents, a footprint (the cells counted for area), and a per-cell column height (metres). `apply` turns those into the level's `area_m2` (footprint cell area) and `volume_m3` (the cell-area-weighted sum of the height), so the volume tapers with the kept column rather than assuming a slab. The footprint is written to `mask_<level>_<mask>.png`.
 
-- the cell **drops out** of the level where any *fully-wet* constituent is undefined — NaN in the mean or any member, at any timestep;
-- a constituent **contributes its value** where it is not dry and is defined at every member and timestep, and contributes **0** otherwise.
+`contiguous_from_top` is the default prescription. `require_top` is a **thickness of the layer's own top** — the metres below `level.low` that must be present — and each level carries its own in `levels.py` (the top 300 m: every level is `300`; `--require-top` overrides it). A cell **survives** only where every constituent reaching into the layer's top `require_top` metres is defined at all times and members. Constituents are atomic (a whole LocalGP layer or nothing), so a `require_top` that lands partway into one requires that whole constituent. Selection is by the constituent's declared bounds; each constituent is a single already-integrated value per cell (present or NaN — no internal depth). With `require_top = 300`: `0_2000` requires `15_20` + `15_300`, whose bounds happen to tile exactly 0–300; `700_2000` requires `700_1850`, because `require_depth = 1000` falls within its 700–1850 bounds — so that one value must be present. The shallowest constituent's `n_fac` reaches the layer top, so any positive `require_top` requires it. Within a surviving cell, walk the constituents from the layer top down and **keep** them until the first undefined one, then discard it and everything below (set to NaN, so they vanish from the nan-aware integral). The kept run's `n_fac`-weighted thickness is the cell's height (a kept `1800_1850` adds 3·50 = 150 m), so the volume is the true tapering ocean.
 
-"Defined" is judged across every member and timestep together, so the footprint is identical for all realizations and the ensemble spread reflects real spread rather than footprint jitter. The footprint is written to `mask_<level>_<mask>.png`, and its area (m²) flows through to the output.
+`fully_wet_nan` is the earlier prescription (bathy-driven): each constituent is classified against the standard bathy as fully wet (floor ≥ `bottom`), intersecting, or dry; a cell drops where any fully-wet constituent is undefined, a constituent contributes where not dry and defined (else 0), and the height is the level's full nominal thickness everywhere in-footprint (a slab).
+
+"Defined" is judged across every member and timestep together, so the footprint is identical for all realizations and the ensemble spread reflects real spread rather than footprint jitter.
 
 ### Quantities
 
@@ -44,7 +45,7 @@ The integral-based quantities are **extensive** — the per-area submission fiel
 
 ### Output
 
-One NetCDF per level, `derive_<tag>_<level>.nc`: each requested quantity plus its `_sd` companion (omitted under `--no-ensemble`), with header attrs `level`, `area_m2`, `volume_m3` (= area × the level's nominal thickness), the physical constants `cp0`/`rho0` (carried from the submissions when present), and `provenance_tag` / `provenance_link`. The factory emits these extensive quantities and geometry; packaging derives the intensive per-area densities from them.
+One NetCDF per level, `derive_<tag>_<level>.nc`: each requested quantity plus its `_sd` companion (omitted under `--no-ensemble`), with header attrs `level`, `area_m2` and `volume_m3` (both from the mask step — the tapered footprint area and column volume), the physical constants `cp0`/`rho0` (carried from the submissions when present), and `provenance_tag` / `provenance_link`. The factory emits these extensive quantities and geometry; packaging derives the intensive per-area densities from them.
 
 ## Usage
 
@@ -75,7 +76,8 @@ All configuration is on the command line — no env, no config file. The availab
 | `--level` | *(required)* | the synthetic level to build (`levels.LEVELS`), e.g. `0_2000`. |
 | `--bathy` | *(required)* | standard bathymetry NetCDF on the common grid. |
 | `--quantities` | *(required)* | comma list from `ohca,ohu,ohca_trend,ohu_trend,map`. Unknown names error. |
-| `--mask` | `fully_wet_nan` | cross-layer mask prescription (`masks.REGISTRY`). |
+| `--mask` | `contiguous_from_top` | cross-layer mask prescription (`masks.REGISTRY`): `contiguous_from_top` or `fully_wet_nan`. |
+| `--require-top` | *(the level's own)* | metres of the layer's own top (from `level.low`) that must be defined for a cell to survive; overrides the level's `require_top` (in `levels.py`). Used by `contiguous_from_top`, ignored by `fully_wet_nan`. |
 | `--time-window` | *(all years)* | `YEAR0:YEAR1` — the anomaly baseline and the trend-fit years. |
 | `--no-ensemble` | off (ensemble **on**) | mean field only — skip the `_sd` companions and do not read the `OHCENS_` siblings. |
 | `--tag` | *(required)* | provenance tag: the **run token** in the filename (`derive_<tag>_<level>.nc`) **and** the `provenance_tag` header attr. Whitespace-stripped, never lowercased — must match the provenance record char-for-char. |
@@ -84,4 +86,4 @@ All configuration is on the command line — no env, no config file. The availab
 
 ## Adding a quantity or a mask
 
-A **quantity**: write a recipe `f(primitives, window) -> DataArray(realization, …)` over the helpers in [`temporal_transforms.py`](temporal_transforms.py) and register it in `temporal_transforms.REGISTRY`. A **mask prescription**: write `f(level, constituents, reference_bathy) -> (masked, footprint)` and register it in `masks.REGISTRY`. In both cases the runner and the combine do the rest — no other file changes.
+A **quantity**: write a recipe `f(primitives, window) -> DataArray(realization, …)` over the helpers in [`temporal_transforms.py`](temporal_transforms.py) and register it in `temporal_transforms.REGISTRY`. A **mask prescription**: write `f(level, constituents, reference_bathy, require_top) -> (masked, footprint, height)` and register it in `masks.REGISTRY` — `footprint` (lat, lon bool) gives the area, `height` (lat, lon metres) gives the volume. In both cases the runner and the combine do the rest — no other file changes.

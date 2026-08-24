@@ -1,24 +1,31 @@
 """Step 2 — cross-layer masking, pluggable.
 
 A prescription takes the synthetic level, its constituents (each with a `field_value` stack and dbar
-bounds), and the standard bathy, and returns the masked constituents plus the footprint mask:
+bounds), the standard bathy, and the required-top depth, and returns:
 
-    (masked, footprint)
+    (masked, footprint, height)
     masked    = {tag: {"field_value": DataArray(realization, time, lat, lon), "n_fac": int}}
-    footprint = DataArray(lat, lon) bool, True where the level holds water (the cells the area counts)
+    footprint = DataArray(lat, lon) bool, True where the level survives (the cells the area counts)
+    height    = DataArray(lat, lon) float, the effective column height (metres) per cell (0 outside)
 
-`apply` runs the named prescription, dumps the footprint to a png, and returns `(masked, area_m2)`,
-the summed cell area of the footprint — ocean where the level has water, so land and dropped columns
-don't inflate the per-area densities downstream.
+`apply` runs the named prescription, dumps the footprint png, and returns `(masked, area_m2, volume_m3)`
+— the summed cell area of the footprint, and the cell-area-weighted sum of the per-cell height. So land
+and dropped columns don't inflate the per-area densities, and the volume tapers with the kept column.
 
-Default `fully_wet_nan`, per cell and per constituent:
-  * a cell drops out of the level where any fully-wet constituent is undefined (NaN in the mean or
-    any member, at any time);
-  * a constituent contributes its value where it is not dry and defined everywhere, and 0 otherwise;
-  * the footprint is the cells with a contribution left after the drops (the shallowest wet area minus
-    the dropped columns); land and dry shelves contribute nothing and are not in it.
+Two prescriptions:
 
-Add a prescription: write `(level, constituents, reference_bathy) -> (masked, footprint)` and register it.
+  `fully_wet_nan` — a cell drops where any fully-wet constituent is undefined; a constituent contributes
+  where not dry and defined, else 0; the footprint is the surviving wet cells; the height is the level's
+  full nominal thickness everywhere in-footprint (a slab). Uses the bathy for wet/dry.
+
+  `contiguous_from_top` — a cell survives only where every constituent covering the layer's top
+  `require_top` metres (from `level.low`) is defined; within a surviving cell, keep the constituents
+  from the layer top down until the first undefined one, then discard it and everything below (NaN, so
+  they vanish from the integral); the height is the n_fac-weighted thickness of the kept run.
+  Data-driven; ignores the bathy.
+
+Add a prescription: write `(level, constituents, reference_bathy, require_top) -> (masked, footprint,
+height)` and register it.
 """
 import os
 
@@ -28,7 +35,7 @@ import xarray as xr
 import grid
 
 
-def fully_wet_nan(level, constituents, reference_bathy):
+def fully_wet_nan(level, constituents, reference_bathy, require_top=None):
     lat, lon = reference_bathy["lat"], reference_bathy["lon"]
     floor = reference_bathy.values                          # seafloor depth, metres
     nlat, nlon = lat.size, lon.size
@@ -58,27 +65,90 @@ def fully_wet_nan(level, constituents, reference_bathy):
         field_value = xr.DataArray(arr, dims=c["field_value"].dims, coords=c["field_value"].coords)
         masked[c["tag"]] = {"field_value": field_value, "n_fac": c["n_fac"]}
 
-    # the footprint: cells that still hold water for this level (any constituent contributes, not dropped)
+    # footprint: surviving wet cells; height: the level's full nominal thickness there (a slab)
     any_contributes = np.zeros((nlat, nlon), dtype=bool)
     for c in constituents:
         any_contributes |= contributes[c["tag"]]
     footprint = any_contributes & ~exclude
-    return masked, xr.DataArray(footprint, dims=("lat", "lon"), coords={"lat": lat, "lon": lon})
+    height = footprint * float(level.nominal_thickness)
+    return (masked,
+            xr.DataArray(footprint, dims=("lat", "lon"), coords={"lat": lat, "lon": lon}),
+            xr.DataArray(height, dims=("lat", "lon"), coords={"lat": lat, "lon": lon}))
+
+
+def contiguous_from_top(level, constituents, reference_bathy, require_top):
+    """Require the layer's top range defined; keep the contiguous defined run down from the top.
+
+    `require_top` is metres of the layer's own top (from `level.low`) that must be present: a cell
+    survives only where every constituent covering `level.low .. level.low + require_top` is defined at
+    all times and members. The shallowest constituent covers from `level.low` (its n_fac reaches the
+    layer top), so any positive `require_top` requires it; a constituent whose `top` sits at or below
+    the required depth is not required, and a `require_top` that lands partway into a constituent pulls
+    that whole constituent in. In a surviving cell, walk from the layer top down and keep constituents
+    until the first undefined one, then discard it and everything below (set to NaN, so they vanish from
+    the nan-aware integral). The height is the n_fac-weighted thickness of the kept run. Data-driven —
+    the bathy is unused.
+    """
+    if require_top is None:
+        raise SystemExit("contiguous_from_top needs --require-top (metres of the layer top to require)")
+    if require_top <= 0:
+        raise SystemExit("--require-top must be positive metres, got %g" % require_top)
+    if require_top > level.high - level.low:
+        raise SystemExit("--require-top %g exceeds the %s layer thickness (%d m)"
+                         % (require_top, level.name, level.high - level.low))
+    fv0 = constituents[0]["field_value"]
+    lat, lon = fv0["lat"], fv0["lon"]
+    nlat, nlon = lat.size, lon.size
+
+    defined = {c["tag"]: c["field_value"].notnull().all(("time", "realization")).values
+               for c in constituents}
+    # required depth is measured from the layer top; the shallowest constituent covers from level.low
+    require_depth = level.low + require_top
+    required = [c for k, c in enumerate(constituents)
+               if (level.low if k == 0 else c["top"]) < require_depth]
+
+    survive = np.ones((nlat, nlon), dtype=bool)             # every required (top) constituent defined
+    for c in required:
+        survive &= defined[c["tag"]]
+
+    kept = {c["tag"]: np.zeros((nlat, nlon), dtype=bool) for c in constituents}
+    for i in range(nlat):
+        for j in range(nlon):
+            if not survive[i, j]:
+                continue
+            for c in constituents:                          # layer top first, shallowest-first
+                if not defined[c["tag"]][i, j]:
+                    break                                   # first gap truncates the column
+                kept[c["tag"]][i, j] = True
+
+    masked = {}
+    height = np.zeros((nlat, nlon), dtype="float64")
+    for c in constituents:
+        arr = c["field_value"].values.copy()
+        arr[:, :, ~kept[c["tag"]]] = np.nan                 # not kept -> NaN, vanishes in the integral
+        field_value = xr.DataArray(arr, dims=c["field_value"].dims, coords=c["field_value"].coords)
+        masked[c["tag"]] = {"field_value": field_value, "n_fac": c["n_fac"]}
+        height += kept[c["tag"]] * (c["n_fac"] * (c["bottom"] - c["top"]))   # n_fac-weighted kept thickness
+
+    return (masked,
+            xr.DataArray(survive, dims=("lat", "lon"), coords={"lat": lat, "lon": lon}),
+            xr.DataArray(height, dims=("lat", "lon"), coords={"lat": lat, "lon": lon}))
 
 
 REGISTRY = {
     "fully_wet_nan": fully_wet_nan,
+    "contiguous_from_top": contiguous_from_top,
 }
 
 
-def apply(name, level, constituents, reference_bathy, out_dir="."):
-    """Run the named prescription, dump its footprint png, return (masked, footprint area in m^2)."""
+def apply(name, level, constituents, reference_bathy, out_dir=".", require_top=None):
+    """Run the named prescription, dump its footprint png, return (masked, area_m2, volume_m3)."""
     if name not in REGISTRY:
         raise SystemExit("unknown mask prescription %r; known: %s" % (name, list(REGISTRY)))
-    masked, footprint = REGISTRY[name](level, constituents, reference_bathy)
+    masked, footprint, height = REGISTRY[name](level, constituents, reference_bathy, require_top)
     _dump_png(footprint, reference_bathy, level.name, name, out_dir)
     area = grid.cell_area(footprint["lat"].values, footprint["lon"].values)
-    return masked, float(area.where(footprint).sum())
+    return masked, float(area.where(footprint).sum()), float((area * height).sum())
 
 
 def _dump_png(footprint, reference_bathy, level_name, mask_name, out_dir):

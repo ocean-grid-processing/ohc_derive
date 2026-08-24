@@ -27,7 +27,7 @@ python run.py \
     --level 0_2000 \
     --bathy /scratch/alpine/wimi7695/ohc_prod/params/etopo60.cdf \
     --quantities ohca,ohu,ohca_trend,ohu_trend \
-    --mask fully_wet_nan \
+    --mask contiguous_from_top \
     --time-window 2005:2024 \
     --tag dev \
     --provenance-link https://example.dev.com \

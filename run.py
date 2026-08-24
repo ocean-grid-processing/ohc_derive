@@ -47,8 +47,10 @@ def run_level(level, submissions, reference_bathy, cfg):
     """The six steps for one synthetic level -> its dataset."""
     constituents = levels.constituents(level, submissions)          # the native levels this band needs
 
-    # step 2 — apply the cross-layer mask; dumps the mask png and returns the footprint area.
-    masked, area_m2 = masks.apply(cfg.mask, level, constituents, reference_bathy, out_dir=cfg.out)
+    # step 2 — apply the cross-layer mask; dumps the mask png and returns the footprint area and volume.
+    require_top = cfg.require_top if cfg.require_top is not None else level.require_top
+    masked, area_m2, volume_m3 = masks.apply(cfg.mask, level, constituents, reference_bathy,
+                                             out_dir=cfg.out, require_top=require_top)
 
     # step 3 — reduce each constituent to its map-level primitives (integral + gridded field).
     maps = map_transforms.apply(masked, level)
@@ -60,7 +62,7 @@ def run_level(level, submissions, reference_bathy, cfg):
     per_constituent = combine.collapse_sd(series)
 
     # step 6 — combine constituents: n_fac sum of values, worst-case n_fac sum of standard deviations.
-    return combine.combine_synthetic(per_constituent, level, area_m2, _constants(submissions, level))
+    return combine.combine_synthetic(per_constituent, level, area_m2, volume_m3, _constants(submissions, level))
 
 
 def _constants(submissions, level):
@@ -76,8 +78,11 @@ def main():
     ap.add_argument("--bathy", required=True, help="standard bathymetry (NetCDF on the common grid)")
     ap.add_argument("--quantities", required=True,
                     help="comma list of deliverables to build (see temporal_transforms.REGISTRY)")
-    ap.add_argument("--mask", default="fully_wet_nan",
+    ap.add_argument("--mask", default="contiguous_from_top",
                     help="cross-layer mask prescription (see masks.REGISTRY)")
+    ap.add_argument("--require-top", type=float, default=None,
+                    help="metres of the layer's own top that must be defined for a cell to survive; "
+                         "overrides the level's own require_top (used by contiguous_from_top)")
     ap.add_argument("--time-window", default=None, help="YEAR0:YEAR1 baseline/trend window (default: all years)")
     ap.add_argument("--no-ensemble", action="store_true", help="mean field only; no standard deviations")
     ap.add_argument("--tag", required=True, help="provenance tag (filename token + provenance_tag attr)")
