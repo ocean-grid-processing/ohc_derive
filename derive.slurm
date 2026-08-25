@@ -30,7 +30,7 @@ python run.py \
     --quantities ohca,ohu,ohca_trend,ohu_trend \
     --mask contiguous_from_top \
     --tag ohca-ohu-OP20260506 \
-    --provenance-link https://github.com/argovis/ohc_derive/releases/tag/prod_260810-ohca-ohu \
+    --provenance-link https://github.com/argovis/ohc_derive/releases/tag/prod_260824-ohca-ohu \
     --out .
 
 
