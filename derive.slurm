@@ -29,10 +29,9 @@ python run.py \
     --bathy /scratch/alpine/wimi7695/ohc_prod/params/etopo60.cdf \
     --quantities ohca,ohu,ohca_trend,ohu_trend \
     --mask contiguous_from_top \
-    --tag ohca-ohu-OP20260506 \
+    --tag  prod_260824-ohca-ohu \
     --provenance-link https://github.com/argovis/ohc_derive/releases/tag/prod_260824-ohca-ohu \
-    --out .
-
+    --out /scratch/alpine/wimi7695/ohc_prod/results
 
 
 # zenodo 4.0.0 (ohc_ohu)
