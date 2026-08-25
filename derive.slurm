@@ -19,19 +19,18 @@ conda activate ohc_crosscheck
 
 cd $SLURM_SUBMIT_DIR
 python run.py \
-/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev15_20_expC_prod_260810.nc \
-/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev15_300_expC_prod_260810.nc \
-/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev300_700_expC_prod_260810.nc \
-/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev700_1850_expC_prod_260810.nc \
-/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev1800_1850_expC_prod_260810.nc \
+/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev15_20_expC_prod_260824.nc \
+/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev15_300_expC_prod_260824.nc \
+/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev300_700_expC_prod_260824.nc \
+/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev700_1000_expC_prod_260824.nc \
+/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev700_1850_expC_prod_260824.nc \
+/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev1800_1850_expC_prod_260824.nc \
     --level 0_2000 \
     --bathy /scratch/alpine/wimi7695/ohc_prod/params/etopo60.cdf \
     --quantities ohca,ohu,ohca_trend,ohu_trend \
     --mask contiguous_from_top \
-    --time-window 2005:2024 \
-    --mask fully_wet_nan \
-    --tag dev-gcos-OP20260506 \
-    --provenance-link https://example.dev.com \
+    --tag ohca-ohu-OP20260506 \
+    --provenance-link https://github.com/argovis/ohc_derive/releases/tag/prod_260810-ohca-ohu \
     --out .
 
 
@@ -51,8 +50,9 @@ python run.py \
 # /scratch/alpine/wimi7695/ohc_validation/gcos/results/OHC_2004_2025_lev1800_1850_expC_validation_260810.nc \
 
 # OP20260506
-#/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev15_20_expC_prod_260810.nc \
-#/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev15_300_expC_prod_260810.nc \
-#/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev300_700_expC_prod_260810.nc \
-#/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev700_1850_expC_prod_260810.nc \
-#/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev1800_1850_expC_prod_260810.nc \
+#/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev15_20_expC_prod_260824.nc \
+#/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev15_300_expC_prod_260824.nc \
+#/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev300_700_expC_prod_260824.nc \
+#/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev700_1000_expC_prod_260824.nc \
+#/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev700_1850_expC_prod_260824.nc \
+#/scratch/alpine/wimi7695/ohc_prod/results/OHC_2004_2025_lev1800_1850_expC_prod_260824.nc \
