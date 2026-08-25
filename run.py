@@ -50,7 +50,7 @@ def run_level(level, submissions, reference_bathy, cfg):
     # step 2 — apply the cross-layer mask; dumps the mask png and returns the footprint area and volume.
     require_top = cfg.require_top if cfg.require_top is not None else level.require_top
     masked, area_m2, volume_m3 = masks.apply(cfg.mask, level, constituents, reference_bathy,
-                                             out_dir=cfg.out, require_top=require_top)
+                                             out_dir=cfg.out, require_top=require_top, tag=cfg.tag)
 
     # step 3 — reduce each constituent to its map-level primitives (integral + gridded field).
     maps = map_transforms.apply(masked, level)
