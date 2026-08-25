@@ -47,7 +47,7 @@ def attrs():
 
 def cfg(quantities, window, out, mask="fully_wet_nan", require_top=None):
     return types.SimpleNamespace(mask=mask, quantities=quantities, time_window=window,
-                                 require_top=require_top, out=out)
+                                 require_top=require_top, tag="dev", out=out)
 
 
 def A():

@@ -44,7 +44,7 @@ def test_run_level_ohca_matches_hand_computed(tmp_path):
     }
     reference_bathy = conftest.bathy([[1000.0, 1000.0, 1000.0], [1000.0, 1000.0, 1000.0]])
     cfg = types.SimpleNamespace(mask="fully_wet_nan", quantities=["ohca"], time_window=None,
-                                require_top=None, out=str(tmp_path))
+                                require_top=None, tag="dev", out=str(tmp_path))
 
     blob = run.run_level(levels.get("0_300"), subs, reference_bathy, cfg)
 
@@ -64,7 +64,7 @@ def test_run_level_with_members_produces_sd_and_geometry(tmp_path):
     }
     reference_bathy = conftest.bathy([[1000.0, 1000.0, 1000.0], [1000.0, 1000.0, 1000.0]])
     cfg = types.SimpleNamespace(mask="fully_wet_nan", quantities=["ohca"], time_window=None,
-                                require_top=None, out=str(tmp_path))
+                                require_top=None, tag="dev", out=str(tmp_path))
     blob = run.run_level(levels.get("0_300"), subs, reference_bathy, cfg)
     A = float(grid.cell_area(conftest.LAT, conftest.LON).sum())
     assert "ohca" in blob.data_vars and "ohca_sd" in blob.data_vars

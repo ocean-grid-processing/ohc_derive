@@ -219,9 +219,9 @@ def test_apply_writes_coverage_diagnostics(tmp_path):
     lv = levels.get("0_2000")
     cons5 = _cons5(nan_300700=[(0, 0)])
     bathy = conftest.bathy([[2500.0, 3000.0, 3000.0], [3000.0, 3000.0, 3000.0]])
-    masks.apply("contiguous_from_top", lv, cons5, bathy, out_dir=str(tmp_path), require_top=300)
+    masks.apply("contiguous_from_top", lv, cons5, bathy, out_dir=str(tmp_path), require_top=300, tag="dev")
 
-    cov = xr.open_dataset(str(tmp_path / "coverage_0_2000_contiguous_from_top.nc"))
+    cov = xr.open_dataset(str(tmp_path / "coverage_dev_0_2000_contiguous_from_top.nc"))
     # (0,0): kept 15_20+15_300 = 300 m; bathy 2500 capped at layer bottom 2000 -> uncaptured 2000-300
     assert np.isclose(float(cov["kept_thickness"].isel(lat=0, lon=0)), 300.0)
     assert np.isclose(float(cov["uncaptured_thickness"].isel(lat=0, lon=0)), 1700.0)
