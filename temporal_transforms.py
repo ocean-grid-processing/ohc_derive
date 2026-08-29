@@ -5,6 +5,7 @@
 short recipe over the small helpers below:
 
     ohca         monthly anomaly (window baseline), then annual mean   -> (realization, year)
+    ohca_monthly monthly anomaly (window baseline), no annual mean      -> (realization, time)
     ohu          month-to-month tendency, then annual mean             -> (realization, year)
     ohca_trend   OLS slope of the annual integral over the window      -> (realization,)
     ohu_trend    OLS slope of the annual tendency over the window      -> (realization,)
@@ -61,6 +62,12 @@ def ohca(primitives, window):
     return _annual(_anomaly(primitives["integral"], window))
 
 
+def ohca_monthly(primitives, window):
+    """OHCA on the native monthly time axis — the anomaly integral before the annual mean. Same
+    baseline as `ohca`; keeps `time` so per-month behaviour at the record ends is visible."""
+    return _anomaly(primitives["integral"], window)
+
+
 def ohu(primitives, window):
     return _annual(_tendency(primitives["integral"]), complete=True)
 
@@ -81,6 +88,7 @@ def gridded_anomaly(primitives, window):
 
 REGISTRY = {
     "ohca": ohca,
+    "ohca_monthly": ohca_monthly,
     "ohu": ohu,
     "ohca_trend": ohca_trend,
     "ohu_trend": ohu_trend,
