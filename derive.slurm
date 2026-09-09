@@ -31,6 +31,7 @@ python run.py \
     --mask contiguous_from_top \
     --tag  260824-OP20260507 \
     --provenance-link https://github.com/argovis/ohc_derive/releases/tag/prod_260824-ohca-ohu \
+    --code-version https://github.com/argovis/ohc_derive/commit/REPLACE_WITH_DEPLOYED_SHA \
     --out /scratch/alpine/wimi7695/ohc_prod/results_260824
 
 

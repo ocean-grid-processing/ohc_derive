@@ -7,12 +7,34 @@ rest = members), so downstream steps treat every realization the same way.
 `load_bathy` reads the standard bathymetry as a depth grid.
 
 `write_blob` writes one synthetic level's dataset (each quantity plus its `_sd`) with the provenance
-tag and link.
+tag and link. `stamp_chain_provenance` rolls every upstream provenance block forward (grouped by
+constituent, since derive is a fan-in) and adds this step's own `ohc_derive_*` blocks.
 """
+import json
 import os
 
 import numpy as np
 import xarray as xr
+
+# This step's identity, used to namespace its provenance (`ohc_derive_run_config` / `_run_facts` /
+# `_code_version`). Every step rolls all `*_run_config` / `_run_facts` / `_code_version` forward and
+# adds its own; at a fan-in they're grouped by constituent, so blocks accrete without collision.
+STAGE = "ohc_derive"
+_PROV_SUFFIXES = ("_run_config", "_run_facts", "_code_version")
+
+
+def _maybe_json(v):
+    """Parse an upstream block back to JSON so it nests as a real object; leave non-JSON as-is. This is
+    structural only — we never read the block's fields, so no coupling to the upstream schema."""
+    try:
+        return json.loads(v)
+    except (TypeError, ValueError):
+        return v
+
+
+def _compact(obj):
+    """One-line JSON — reads as a single clean line in `ncdump -h`."""
+    return json.dumps(obj, separators=(",", ":"), default=str)
 
 
 def _to_tlatlon(da):
@@ -74,6 +96,42 @@ def load_bathy(path):
     da = xr.open_dataset(path)["ROSE"]
     da = da.rename({"ETOPO60Y": "lat", "ETOPO60X": "lon"}).transpose("lat", "lon").astype("float64")
     return -da
+
+
+def stamp_chain_provenance(blob, level, cfg, submissions):
+    """Roll the upstream provenance chain forward and add this step's own blocks.
+
+    derive is a fan-in: N constituents each carry their own `*_run_config` / `_run_facts` /
+    `_code_version` (localgp_ingest_*, localgp_publish_*, …). We group each block by the constituent it
+    came from — `<block> = {constituent_tag: block}` — so nothing is deduplicated away and downstream
+    never has to know who produced what. Blocks are opaque: parsed only to nest cleanly, never read.
+    """
+    contributors = [c.tag for c in level.contributors]
+    forwarded = {}                                            # block_name -> {constituent_tag: block}
+    for tag in contributors:
+        for k, v in submissions[tag]["attrs"].items():
+            if k.endswith(_PROV_SUFFIXES):
+                forwarded.setdefault(k, {})[tag] = _maybe_json(v)
+    for block_name, per_constituent in forwarded.items():
+        blob.attrs[block_name] = _compact(per_constituent)
+
+    require_top = cfg.require_top if cfg.require_top is not None else level.require_top
+    blob.attrs["%s_code_version" % STAGE] = cfg.code_version
+    blob.attrs["%s_run_config" % STAGE] = _compact(vars(cfg))
+    blob.attrs["%s_run_facts" % STAGE] = _compact({
+        "level": level.name,
+        "quantities": cfg.quantities,
+        "mask": cfg.mask,
+        "require_top": require_top,
+        "time_window": "%d-%d" % cfg.time_window if cfg.time_window else "all",
+        "ensemble": not cfg.no_ensemble,
+        "area_m2": blob.attrs.get("area_m2"),
+        "volume_m3": blob.attrs.get("volume_m3"),
+        "constituents": contributors,
+        "n_fac": {c.tag: c.n_fac for c in level.contributors},
+        "cp0": blob.attrs.get("cp0"),
+        "rho0": blob.attrs.get("rho0"),
+    })
 
 
 def write_blob(blob, level, cfg):

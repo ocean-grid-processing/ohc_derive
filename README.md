@@ -47,6 +47,8 @@ The integral-based quantities are **extensive** — the per-area submission fiel
 
 One NetCDF per level, `derive_<tag>_<level>.nc`: each requested quantity plus its `_sd` companion (omitted under `--no-ensemble`), with header attrs `level`, `area_m2` and `volume_m3` (both from the mask step — the tapered footprint area and column volume), the physical constants `cp0`/`rho0` (carried from the submissions when present), and `provenance_tag` / `provenance_link`. The factory emits these extensive quantities and geometry; packaging derives the intensive per-area densities from them.
 
+**Provenance chain.** derive is a fan-in — one synthetic level is built from N constituent submissions — so it rolls each upstream provenance block forward *grouped by constituent*: for every `*_run_config` / `*_run_facts` / `*_code_version` on the inputs (e.g. `localgp_ingest_*`, `localgp_publish_*`), the output carries `<block> = {constituent_tag: block}` (compact JSON, one line). Blocks are opaque — parsed only to nest, never read — so nothing is deduplicated and there's no coupling to the upstream schema. On top of that, derive stamps its own `ohc_derive_run_config` (resolved args), `ohc_derive_run_facts` (level, geometry, constituents, `n_fac`, axis), and `ohc_derive_code_version`. Each step namespaces its block by identity, so the chain accretes at every stage; the global `provenance_tag` / `provenance_link` are this derive run's own.
+
 ## Usage
 
 ### Environment
@@ -82,6 +84,7 @@ All configuration is on the command line — no env, no config file. The availab
 | `--no-ensemble` | off (ensemble **on**) | mean field only — skip the `_sd` companions and do not read the `OHCENS_` siblings. |
 | `--tag` | *(required)* | provenance tag: the **run token** in the filename (`derive_<tag>_<level>.nc`) **and** the `provenance_tag` header attr. Whitespace-stripped, never lowercased — must match the provenance record char-for-char. |
 | `--provenance-link` | *(none)* | URL/path to the provenance record; written to the `provenance_link` header attr. |
+| `--code-version` | *(required)* | URL to the exact ohc_derive code (commit/release); written to the `ohc_derive_code_version` header attr. |
 | `--out` | `.` | output directory. |
 
 ## Adding a quantity or a mask

@@ -39,6 +39,7 @@ def run(cfg):
     reference_bathy = loader.load_bathy(cfg.bathy)
 
     blob = run_level(level, submissions, reference_bathy, cfg)
+    loader.stamp_chain_provenance(blob, level, cfg, submissions)   # roll upstream chain + stamp ohc_derive_*
     loader.write_blob(blob, level, cfg)
     return blob
 
@@ -87,6 +88,9 @@ def main():
     ap.add_argument("--no-ensemble", action="store_true", help="mean field only; no standard deviations")
     ap.add_argument("--tag", required=True, help="provenance tag (filename token + provenance_tag attr)")
     ap.add_argument("--provenance-link", default=None, help="URL/path to the provenance record")
+    ap.add_argument("--code-version", required=True,
+                    help="URL to the exact ohc_derive code (commit/release); stamped as "
+                         "ohc_derive_code_version")
     ap.add_argument("--out", default=".")
     cfg = ap.parse_args()
     cfg.quantities = [s.strip() for s in cfg.quantities.split(",") if s.strip()]
