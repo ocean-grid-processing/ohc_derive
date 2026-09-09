@@ -18,13 +18,10 @@ module load anaconda/2023.09
 conda activate ohc_crosscheck
 
 cd $SLURM_SUBMIT_DIR
+tag=260901-OP20260507
+results=/scratch/alpine/wimi7695/ohc_prod/results_260908
 python run.py \
-/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev15_20_expC_prod_260824.nc \
-/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev15_300_expC_prod_260824.nc \
-/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev300_700_expC_prod_260824.nc \
-/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev700_1000_expC_prod_260824.nc \
-/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev700_1850_expC_prod_260824.nc \
-/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev1800_1850_expC_prod_260824.nc \
+${results}/OHC_*${tag}.nc \
     --level 0_2000 \
     --bathy /scratch/alpine/wimi7695/ohc_prod/params/etopo60.cdf \
     --quantities ohca,ohu,ohca_trend,ohu_trend \
