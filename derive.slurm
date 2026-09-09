@@ -18,14 +18,15 @@ module load anaconda/2023.09
 conda activate ohc_crosscheck
 
 cd $SLURM_SUBMIT_DIR
-tag=260901-OP20260507
+tag=260908-OP20260507
 results=/scratch/alpine/wimi7695/ohc_prod/results_260908
 python run.py \
     ${results}/OHC_*${tag}.nc \
-    --level 0_2000 \
-    --bathy /scratch/alpine/wimi7695/ohc_prod/params/etopo60.cdf \
+    --level 700_2000 \
+    --time-window 2005:2025 \
     --quantities ohca,ohu,ohca_trend,ohu_trend \
     --mask contiguous_from_top \
+    --bathy /scratch/alpine/wimi7695/ohc_prod/params/etopo60.cdf \
     --tag  ${tag} \
     --provenance-link https://github.com/ocean-grid-processing/provenance/blob/main/README.md \
     --code-version https://github.com/ocean-grid-processing/ohc_derive/releases/tag/1.0.0 \
