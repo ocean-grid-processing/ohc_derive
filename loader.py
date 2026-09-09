@@ -134,15 +134,39 @@ def stamp_chain_provenance(blob, level, cfg, submissions):
     })
 
 
+def _record_span(blob):
+    """(year0, year1) spanned by the blob's own axis — `year` for the annual quantities, `time` for the
+    gridded/monthly ones — or None if it carries neither (e.g. a trend-only blob)."""
+    if "year" in blob.coords:
+        yrs = blob["year"].values.astype(int)
+        return int(yrs.min()), int(yrs.max())
+    if "time" in blob.coords:
+        yrs = blob["time"].values.astype("datetime64[Y]").astype(int) + 1970
+        return int(yrs.min()), int(yrs.max())
+    return None
+
+
+def _window_token(cfg, blob):
+    """Filename year-range token: the `--time-window` if given, else the blob's own full record span
+    (so a windowless run reads as its actual years, not a bare `all`)."""
+    if cfg.time_window:
+        return "%d_%d" % cfg.time_window
+    span = _record_span(blob)
+    return "%d_%d" % span if span else "all"
+
+
 def write_blob(blob, level, cfg):
     """Write one synthetic level's dataset to NetCDF, tagged with cfg.tag and provenance link."""
     os.makedirs(cfg.out, exist_ok=True)
     blob.attrs["level"] = level.name
+    # The attr keeps its intent semantics ("all" = whole-record baseline) — the gcos emitter reads it to
+    # reject a windowless derive. The filename gets a concrete year range so different windows can't
+    # collide (whole-record vs 2005-2024 are the same tag+level, different content).
     blob.attrs["time_window"] = "%d-%d" % cfg.time_window if cfg.time_window else "all"
     blob.attrs["provenance_tag"] = cfg.tag
     if cfg.provenance_link is not None:
         blob.attrs["provenance_link"] = cfg.provenance_link
-    path = os.path.join(cfg.out, "derive_%s_%s.nc" % (cfg.tag, level.name))
+    path = os.path.join(cfg.out, "derive_%s_%s_%s.nc" % (cfg.tag, _window_token(cfg, blob), level.name))
     blob.to_netcdf(path, engine="netcdf4")
     print("wrote", path)
     return path

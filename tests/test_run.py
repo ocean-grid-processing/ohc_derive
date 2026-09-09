@@ -2,11 +2,19 @@
 import types
 
 import numpy as np
+import xarray as xr
 
 import run
 import levels
 import grid
+import loader
 import conftest
+
+
+def test_window_token_uses_window_or_record_span():
+    blob = xr.Dataset({"ohca": ("year", [1.0, 2.0])}, coords={"year": [2004, 2025]})
+    assert loader._window_token(types.SimpleNamespace(time_window=(2005, 2024)), blob) == "2005_2024"
+    assert loader._window_token(types.SimpleNamespace(time_window=None), blob) == "2004_2025"
 
 
 def test_parse_window():
