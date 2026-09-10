@@ -38,20 +38,22 @@ def run(cfg):
     submissions = loader.load_submissions(cfg.submissions, with_members=not cfg.no_ensemble)
     reference_bathy = loader.load_bathy(cfg.bathy)
 
-    blob = run_level(level, submissions, reference_bathy, cfg)
+    window = loader.window_token(cfg, submissions)                 # shared by the .nc and the auxiliaries
+    blob = run_level(level, submissions, reference_bathy, cfg, window)
     loader.stamp_chain_provenance(blob, level, cfg, submissions)   # roll upstream chain + stamp ohc_derive_*
-    loader.write_blob(blob, level, cfg)
+    loader.write_blob(blob, level, cfg, window)
     return blob
 
 
-def run_level(level, submissions, reference_bathy, cfg):
+def run_level(level, submissions, reference_bathy, cfg, window=None):
     """The six steps for one synthetic level -> its dataset."""
     constituents = levels.constituents(level, submissions)          # the native levels this band needs
 
     # step 2 — apply the cross-layer mask; dumps the mask png and returns the footprint area and volume.
     require_top = cfg.require_top if cfg.require_top is not None else level.require_top
     masked, area_m2, volume_m3 = masks.apply(cfg.mask, level, constituents, reference_bathy,
-                                             out_dir=cfg.out, require_top=require_top, tag=cfg.tag)
+                                             out_dir=cfg.out, require_top=require_top, tag=cfg.tag,
+                                             window=window)
 
     # step 3 — reduce each constituent to its map-level primitives (integral + gridded field).
     maps = map_transforms.apply(masked, level)

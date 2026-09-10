@@ -155,7 +155,20 @@ def _window_token(cfg, blob):
     return "%d_%d" % span if span else "all"
 
 
-def write_blob(blob, level, cfg):
+def window_token(cfg, submissions):
+    """The same filename year-range token, resolved from the submissions' time axis — so the mask/
+    coverage auxiliaries (written before the blob exists) share the main file's window token."""
+    if cfg.time_window:
+        return "%d_%d" % cfg.time_window
+    for s in submissions.values():
+        t = s["field_value"]["time"].values
+        if t.size:
+            yrs = t.astype("datetime64[Y]").astype(int) + 1970
+            return "%d_%d" % (int(yrs.min()), int(yrs.max()))
+    return "all"
+
+
+def write_blob(blob, level, cfg, window=None):
     """Write one synthetic level's dataset to NetCDF, tagged with cfg.tag and provenance link."""
     os.makedirs(cfg.out, exist_ok=True)
     blob.attrs["level"] = level.name
@@ -166,7 +179,8 @@ def write_blob(blob, level, cfg):
     blob.attrs["provenance_tag"] = cfg.tag
     if cfg.provenance_link is not None:
         blob.attrs["provenance_link"] = cfg.provenance_link
-    path = os.path.join(cfg.out, "derive_%s_%s_%s.nc" % (cfg.tag, _window_token(cfg, blob), level.name))
+    win = window if window is not None else _window_token(cfg, blob)
+    path = os.path.join(cfg.out, "derive_%s_%s_%s.nc" % (cfg.tag, win, level.name))
     blob.to_netcdf(path, engine="netcdf4")
     print("wrote", path)
     return path
