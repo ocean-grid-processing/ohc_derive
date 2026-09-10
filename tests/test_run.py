@@ -38,6 +38,7 @@ def test_load_submissions_rejects_duplicate_native_level(tmp_path):
 def test_parse_window():
     assert run._parse_window("2005:2024") == (2005, 2024)
     assert run._parse_window("2005-2024") == (2005, 2024)
+    assert run._parse_window("2005_2024") == (2005, 2024)     # filename-token form
     assert run._parse_window(None) is None
     assert run._parse_window("") is None
 

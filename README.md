@@ -80,7 +80,7 @@ All configuration is on the command line — no env, no config file. The availab
 | `--quantities` | *(required)* | comma list from `ohca,ohu,ohca_trend,ohu_trend,map`. Unknown names error. |
 | `--mask` | `contiguous_from_top` | cross-layer mask prescription (`masks.REGISTRY`): `contiguous_from_top` or `fully_wet_nan`. |
 | `--require-top` | *(the level's own)* | metres of the layer's own top (from `level.low`) that must be defined for a cell to survive; overrides the level's `require_top` (in `levels.py`). Used by `contiguous_from_top`, ignored by `fully_wet_nan`. |
-| `--time-window` | *(all years)* | `YEAR0:YEAR1` — the anomaly baseline and the trend-fit years. |
+| `--time-window` | *(all years)* | `YEAR0:YEAR1` — the anomaly baseline and the trend-fit years. Separator `:`, `-`, or `_`, so the filename token `2004_2025` works verbatim. |
 | `--no-ensemble` | off (ensemble **on**) | mean field only — skip the `_sd` companions and do not read the `OHCENS_` siblings. |
 | `--tag` | *(required)* | provenance tag: the **run token** in the filename (`derive_<tag>_<window>_<level>.nc`) **and** the `provenance_tag` header attr. Whitespace-stripped, never lowercased — must match the provenance record char-for-char. |
 | `--provenance-link` | *(none)* | URL/path to the provenance record; written to the `provenance_link` header attr. |

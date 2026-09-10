@@ -86,7 +86,9 @@ def main():
     ap.add_argument("--require-top", type=float, default=None,
                     help="metres of the layer's own top that must be defined for a cell to survive; "
                          "overrides the level's own require_top (used by contiguous_from_top)")
-    ap.add_argument("--time-window", default=None, help="YEAR0:YEAR1 baseline/trend window (default: all years)")
+    ap.add_argument("--time-window", default=None,
+                    help="YEAR0:YEAR1 baseline/trend window (default: all years); separator "
+                         "`:`, `-`, or `_` (so the filename token 2004_2025 works too)")
     ap.add_argument("--no-ensemble", action="store_true", help="mean field only; no standard deviations")
     ap.add_argument("--tag", required=True, help="provenance tag (filename token + provenance_tag attr)")
     ap.add_argument("--provenance-link", default=None, help="URL/path to the provenance record")
@@ -103,10 +105,11 @@ def main():
 
 
 def _parse_window(s):
-    """YEAR0:YEAR1 (or -) -> (int, int); None/empty -> None (all years)."""
+    """YEAR0:YEAR1 -> (int, int); None/empty -> None (all years). Separator may be `:`, `-`, or `_`, so
+    the underscore year-range token from the filenames (e.g. `2004_2025`) parses as-is."""
     if not s:
         return None
-    y0, y1 = (int(x) for x in s.replace("-", ":").split(":"))
+    y0, y1 = (int(x) for x in s.replace("-", ":").replace("_", ":").split(":"))
     return (y0, y1)
 
 
