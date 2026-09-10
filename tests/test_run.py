@@ -17,6 +17,24 @@ def test_window_token_uses_window_or_record_span():
     assert loader._window_token(types.SimpleNamespace(time_window=None), blob) == "2004_2025"
 
 
+def test_load_submissions_rejects_duplicate_native_level(tmp_path):
+    import pytest
+
+    def _write(path, tag):
+        ds = xr.Dataset({"DATA": (("LONGITUDE", "LATITUDE", "TIME"), np.zeros((2, 2, 1)))})
+        ds.attrs["mapped_layer"] = tag
+        ds.to_netcdf(path)
+
+    _write(str(tmp_path / "a.nc"), "15_20")
+    _write(str(tmp_path / "b.nc"), "15_20")                 # same native level -> collision
+    with pytest.raises(SystemExit):
+        loader.load_submissions([str(tmp_path / "a.nc"), str(tmp_path / "b.nc")], with_members=False)
+
+    _write(str(tmp_path / "c.nc"), "15_300")               # distinct levels load fine
+    subs = loader.load_submissions([str(tmp_path / "a.nc"), str(tmp_path / "c.nc")], with_members=False)
+    assert set(subs) == {"15_20", "15_300"}
+
+
 def test_parse_window():
     assert run._parse_window("2005:2024") == (2005, 2024)
     assert run._parse_window("2005-2024") == (2005, 2024)

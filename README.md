@@ -74,7 +74,7 @@ All configuration is on the command line — no env, no config file. The availab
 
 | option | default | effect |
 |---|---|---|
-| `SUBMISSION.nc …` (positional) | *(required)* | the constituent `OHC_` submissions for the level, one per native constituent; the `OHCENS_` member siblings are found automatically. |
+| `SUBMISSION.nc …` (positional) | *(required)* | the constituent `OHC_` submissions; the `OHCENS_` member siblings are found automatically. Each level selects the native constituents it needs by tag, so you can pass the whole pool of submissions and let each run pick — but the pool must hold **exactly one file per native level** (a duplicate tag, e.g. a stray window/experiment/rerun, is a hard error, not a silent last-wins). |
 | `--level` | *(required)* | the synthetic level to build (`levels.LEVELS`), e.g. `0_2000`. |
 | `--bathy` | *(required)* | standard bathymetry NetCDF on the common grid. |
 | `--quantities` | *(required)* | comma list from `ohca,ohu,ohca_trend,ohu_trend,map`. Unknown names error. |

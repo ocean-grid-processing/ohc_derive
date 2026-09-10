@@ -70,8 +70,16 @@ def _stack(mean_da, member_da):
 
 
 def load_submissions(paths, with_members=True):
-    """paths -> {tag: {"field_value": DataArray(realization, time, lat, lon), "attrs": dict}}."""
+    """paths -> {tag: {"field_value": DataArray(realization, time, lat, lon), "attrs": dict}}.
+
+    Submissions are keyed by their native-level tag, and each level a synthetic level needs is selected
+    by tag — so passing the whole pool and letting each run pick its constituents is fine. But that only
+    works if the pool holds exactly one file per native level: two files with the same tag (a stray
+    window / experiment / rerun) is a hard error rather than a silent last-wins that would combine the
+    wrong data.
+    """
     subs = {}
+    seen = {}
     for p in paths:
         ds = xr.open_dataset(p, decode_times=True)
         if "DATA" not in ds.data_vars:
@@ -79,9 +87,14 @@ def load_submissions(paths, with_members=True):
         tag = ds.attrs.get("mapped_layer") or ds.attrs.get("layer_m")
         if not tag or "_" not in str(tag):
             raise SystemExit("%s has no usable mapped_layer/layer_m attr (got %r)" % (p, tag))
+        tag = str(tag)
+        if tag in seen:
+            raise SystemExit("two submissions map to native level %s:\n  %s\n  %s\n"
+                             "the pool must hold exactly one file per native level." % (tag, seen[tag], p))
+        seen[tag] = p
         mean_da = _to_tlatlon(ds["DATA"]).astype("float64")
         members = _load_members(p) if with_members else None
-        subs[str(tag)] = {"field_value": _stack(mean_da, members), "attrs": dict(ds.attrs)}
+        subs[tag] = {"field_value": _stack(mean_da, members), "attrs": dict(ds.attrs)}
     return subs
 
 
