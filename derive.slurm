@@ -21,10 +21,10 @@ cd $SLURM_SUBMIT_DIR
 tag=260908-OP20260507
 results=/scratch/alpine/wimi7695/ohc_prod/results_260908
 python run.py \
-    ${results}/OHC_${tag}_*.nc \
-    --level 700_2000 \
-    --time-window 2005:2025 \
-    --quantities ohca,ohu,ohca_trend,ohu_trend \
+    ${results}/OHC_*${tag}.nc \
+    --level $2 \
+    --time-window $1 \
+    --quantities ohca,ohu,ohca_trend,ohu_trend,map \
     --mask contiguous_from_top \
     --bathy /scratch/alpine/wimi7695/ohc_prod/params/etopo60.cdf \
     --tag  ${tag} \
