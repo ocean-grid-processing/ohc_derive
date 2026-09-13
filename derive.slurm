@@ -21,7 +21,7 @@ cd $SLURM_SUBMIT_DIR
 tag=260908-OP20260507
 results=/scratch/alpine/wimi7695/ohc_prod/results_260908
 python run.py \
-    ${results}/OHC_*${tag}.nc \
+    ${results}/OHC_${tag}_*.nc \
     --level 700_2000 \
     --time-window 2005:2025 \
     --quantities ohca,ohu,ohca_trend,ohu_trend \
