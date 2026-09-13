@@ -159,41 +159,50 @@ def _record_span(blob):
     return None
 
 
-def _window_token(cfg, blob):
-    """Filename year-range token: the `--time-window` if given, else the blob's own full record span
-    (so a windowless run reads as its actual years, not a bare `all`)."""
-    if cfg.time_window:
-        return "%d_%d" % cfg.time_window
-    span = _record_span(blob)
-    return "%d_%d" % span if span else "all"
-
-
-def window_token(cfg, submissions):
-    """The same filename year-range token, resolved from the submissions' time axis — so the mask/
-    coverage auxiliaries (written before the blob exists) share the main file's window token."""
-    if cfg.time_window:
-        return "%d_%d" % cfg.time_window
+def _submissions_span(submissions):
+    """(year0, year1) data span from the submissions' shared monthly time axis, or None."""
     for s in submissions.values():
         t = s["field_value"]["time"].values
         if t.size:
             yrs = t.astype("datetime64[Y]").astype(int) + 1970
-            return "%d_%d" % (int(yrs.min()), int(yrs.max()))
-    return "all"
+            return int(yrs.min()), int(yrs.max())
+    return None
 
 
-def write_blob(blob, level, cfg, window=None):
+def _combined_token(data_span, cfg):
+    """Filename token carrying both spans: `<data>_tw<baseline>`, each `YYYY_YYYY`. `data` is the years
+    actually present; `baseline` is the `--time-window`, defaulting to the whole data span. So a
+    windowless run reads as e.g. `2004_2025_tw2004_2025`, and a 2005-2024 baseline as
+    `2004_2025_tw2005_2024`."""
+    data = "%d_%d" % data_span if data_span else "all"
+    baseline = "%d_%d" % cfg.time_window if cfg.time_window else data
+    return "%s_tw%s" % (data, baseline)
+
+
+def _file_token(cfg, blob):
+    """The combined `<data>_tw<baseline>` token, data span read from the finished blob's own axis."""
+    return _combined_token(_record_span(blob), cfg)
+
+
+def file_token(cfg, submissions):
+    """The combined token, data span read from the submissions' time axis — so the mask/coverage
+    auxiliaries (written before the blob exists) share the main file's token."""
+    return _combined_token(_submissions_span(submissions), cfg)
+
+
+def write_blob(blob, level, cfg, token=None):
     """Write one synthetic level's dataset to NetCDF, tagged with cfg.tag and provenance link."""
     os.makedirs(cfg.out, exist_ok=True)
     blob.attrs["level"] = level.name
     # The attr keeps its intent semantics ("all" = whole-record baseline) — the gcos emitter reads it to
-    # reject a windowless derive. The filename gets a concrete year range so different windows can't
-    # collide (whole-record vs 2005-2024 are the same tag+level, different content).
+    # reject a windowless derive. The filename carries both concrete year ranges (data span and baseline)
+    # so runs that differ only in baseline can't collide (same tag+level, different content).
     blob.attrs["time_window"] = "%d-%d" % cfg.time_window if cfg.time_window else "all"
     blob.attrs["provenance_tag"] = cfg.tag
     if cfg.provenance_link is not None:
         blob.attrs["provenance_link"] = cfg.provenance_link
-    win = window if window is not None else _window_token(cfg, blob)
-    path = os.path.join(cfg.out, "derive_%s_%s_%s.nc" % (cfg.tag, win, level.name))
+    tok = token if token is not None else _file_token(cfg, blob)
+    path = os.path.join(cfg.out, "derive_%s_%s_%s.nc" % (cfg.tag, tok, level.name))
     blob.to_netcdf(path, engine="netcdf4")
     print("wrote", path)
     return path

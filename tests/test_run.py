@@ -11,10 +11,11 @@ import loader
 import conftest
 
 
-def test_window_token_uses_window_or_record_span():
+def test_file_token_carries_data_span_and_baseline():
     blob = xr.Dataset({"ohca": ("year", [1.0, 2.0])}, coords={"year": [2004, 2025]})
-    assert loader._window_token(types.SimpleNamespace(time_window=(2005, 2024)), blob) == "2005_2024"
-    assert loader._window_token(types.SimpleNamespace(time_window=None), blob) == "2004_2025"
+    # data span from the blob's axis; baseline from --time-window, defaulting to the whole data span
+    assert loader._file_token(types.SimpleNamespace(time_window=(2005, 2024)), blob) == "2004_2025_tw2005_2024"
+    assert loader._file_token(types.SimpleNamespace(time_window=None), blob) == "2004_2025_tw2004_2025"
 
 
 def test_load_submissions_rejects_duplicate_native_level(tmp_path):

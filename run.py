@@ -38,14 +38,14 @@ def run(cfg):
     submissions = loader.load_submissions(cfg.submissions, with_members=not cfg.no_ensemble)
     reference_bathy = loader.load_bathy(cfg.bathy)
 
-    window = loader.window_token(cfg, submissions)                 # shared by the .nc and the auxiliaries
-    blob = run_level(level, submissions, reference_bathy, cfg, window)
+    token = loader.file_token(cfg, submissions)                    # shared by the .nc and the auxiliaries
+    blob = run_level(level, submissions, reference_bathy, cfg, token)
     loader.stamp_chain_provenance(blob, level, cfg, submissions)   # roll upstream chain + stamp ohc_derive_*
-    loader.write_blob(blob, level, cfg, window)
+    loader.write_blob(blob, level, cfg, token)
     return blob
 
 
-def run_level(level, submissions, reference_bathy, cfg, window=None):
+def run_level(level, submissions, reference_bathy, cfg, token=None):
     """The six steps for one synthetic level -> its dataset."""
     constituents = levels.constituents(level, submissions)          # the native levels this band needs
 
@@ -53,7 +53,7 @@ def run_level(level, submissions, reference_bathy, cfg, window=None):
     require_top = cfg.require_top if cfg.require_top is not None else level.require_top
     masked, area_m2, volume_m3 = masks.apply(cfg.mask, level, constituents, reference_bathy,
                                              out_dir=cfg.out, require_top=require_top, tag=cfg.tag,
-                                             window=window)
+                                             token=token)
 
     # step 3 — reduce each constituent to its map-level primitives (integral + gridded field).
     maps = map_transforms.apply(masked, level)
