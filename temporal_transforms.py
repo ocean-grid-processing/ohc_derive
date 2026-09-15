@@ -5,6 +5,7 @@
 short recipe over the small helpers below:
 
     ohca         monthly anomaly (window baseline), then annual mean   -> (realization, year)
+    ohca_absolute annual mean of the absolute integral (no demean)     -> (realization, year)
     ohu          month-to-month tendency, then annual mean             -> (realization, year)
     ohca_trend   OLS slope of the annual integral over the window      -> (realization,)
     ohu_trend    OLS slope of the annual tendency over the window      -> (realization,)
@@ -61,6 +62,12 @@ def ohca(primitives, window):
     return _annual(_anomaly(primitives["integral"], window))
 
 
+def ohca_absolute(primitives, window):
+    # the ohca recipe minus the anomaly demean: the annual mean of the absolute integral. Its spread is
+    # the member std of the un-demeaned value, for isolating the demean's effect on the SD from the rest.
+    return _annual(primitives["integral"])
+
+
 def ohu(primitives, window):
     return _annual(_tendency(primitives["integral"]), complete=True)
 
@@ -81,6 +88,7 @@ def gridded_anomaly(primitives, window):
 
 REGISTRY = {
     "ohca": ohca,
+    "ohca_absolute": ohca_absolute,
     "ohu": ohu,
     "ohca_trend": ohca_trend,
     "ohu_trend": ohu_trend,
