@@ -18,40 +18,16 @@ module load anaconda/2023.09
 conda activate ohc_crosscheck
 
 cd $SLURM_SUBMIT_DIR
+tag=260908-OP20260507
+results=/scratch/alpine/wimi7695/ohc_prod/results_260908
 python run.py \
-/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev15_20_expC_prod_260824.nc \
-/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev15_300_expC_prod_260824.nc \
-/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev300_700_expC_prod_260824.nc \
-/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev700_1000_expC_prod_260824.nc \
-/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev700_1850_expC_prod_260824.nc \
-/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev1800_1850_expC_prod_260824.nc \
-    --level 0_2000 \
-    --bathy /scratch/alpine/wimi7695/ohc_prod/params/etopo60.cdf \
-    --quantities ohca,ohu,ohca_trend,ohu_trend \
+    ${results}/OHC_${tag}*.nc \
+    --level $2 \
+    --time-window $1 \
+    --quantities ohca,ohu,ohca_trend,ohu_trend,map \
     --mask contiguous_from_top \
-    --tag  260824-OP20260507 \
-    --provenance-link https://github.com/argovis/ohc_derive/releases/tag/prod_260824-ohca-ohu \
-    --out /scratch/alpine/wimi7695/ohc_prod/results_260824
-
-
-# zenodo 4.0.0 (ohc_ohu)
-#    /scratch/alpine/wimi7695/ohc_validation/ohca/results_260824/OHC_2004_2024_lev15_20_expC_validation_260810.nc \
-#    /scratch/alpine/wimi7695/ohc_validation/ohca/results_260824/OHC_2004_2024_lev15_300_expC_validation_260810.nc \
-#    /scratch/alpine/wimi7695/ohc_validation/ohca/results_260824/OHC_2004_2024_lev300_700_expC_validation_260810.nc \
-#    /scratch/alpine/wimi7695/ohc_validation/ohca/results_260824/OHC_2004_2024_lev700_1850_expC_validation_260810.nc \
-#    /scratch/alpine/wimi7695/ohc_validation/ohca/results_260824/OHC_2004_2024_lev1800_1850_expC_validation_260810.nc \
-
-# zenodo 4.0.1 (gcos)
-# /scratch/alpine/wimi7695/ohc_validation/gcos/results_260824/OHC_2004_2025_lev15_20_expC_validation_260810.nc \
-# /scratch/alpine/wimi7695/ohc_validation/gcos/results_260824/OHC_2004_2025_lev15_300_expC_validation_260810.nc \
-# /scratch/alpine/wimi7695/ohc_validation/gcos/results_260824/OHC_2004_2025_lev300_700_expC_validation_260810.nc \
-# /scratch/alpine/wimi7695/ohc_validation/gcos/results_260824/OHC_2004_2025_lev700_1850_expC_validation_260810.nc \
-# /scratch/alpine/wimi7695/ohc_validation/gcos/results_260824/OHC_2004_2025_lev1800_1850_expC_validation_260810.nc \
-
-# OP20260506
-#/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev15_20_expC_prod_260824.nc \
-#/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev15_300_expC_prod_260824.nc \
-#/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev300_700_expC_prod_260824.nc \
-#/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev700_1000_expC_prod_260824.nc \
-#/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev700_1850_expC_prod_260824.nc \
-#/scratch/alpine/wimi7695/ohc_prod/results_260824/OHC_2004_2025_lev1800_1850_expC_prod_260824.nc \
+    --bathy /scratch/alpine/wimi7695/ohc_prod/params/etopo60.cdf \
+    --tag  ${tag} \
+    --provenance-link https://github.com/ocean-grid-processing/provenance/blob/main/README.md \
+    --code-version https://github.com/ocean-grid-processing/ohc_derive/releases/tag/1.0.0 \
+    --out ${results}

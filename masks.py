@@ -8,7 +8,7 @@ bounds), the standard bathy, and the required-top depth, and returns:
     footprint = DataArray(lat, lon) bool, True where the level survives (the cells the area counts)
     height    = DataArray(lat, lon) float, the effective column height (metres) per cell (0 outside)
 
-`apply` runs the named prescription, dumps the footprint png and a `coverage_<tag>_<level>_<mask>.nc`
+`apply` runs the named prescription, dumps the footprint png and a `coverage_<tag>_<token>_<level>_<mask>.nc`
 (per-cell kept and uncaptured thickness), and returns `(masked, area_m2, volume_m3)` — the summed cell
 area of the footprint, and the cell-area-weighted sum of the per-cell height. So land and dropped
 columns don't inflate the per-area densities, and the volume tapers with the kept column.
@@ -142,18 +142,18 @@ REGISTRY = {
 }
 
 
-def apply(name, level, constituents, reference_bathy, out_dir=".", require_top=None, tag=None):
+def apply(name, level, constituents, reference_bathy, out_dir=".", require_top=None, tag=None, token=None):
     """Run the named prescription, dump its footprint png, return (masked, area_m2, volume_m3)."""
     if name not in REGISTRY:
         raise SystemExit("unknown mask prescription %r; known: %s" % (name, list(REGISTRY)))
     masked, footprint, height = REGISTRY[name](level, constituents, reference_bathy, require_top)
-    _dump_png(footprint, reference_bathy, level.name, name, out_dir, tag)
-    _dump_coverage(footprint, height, reference_bathy, level, name, out_dir, tag)
+    _dump_png(footprint, reference_bathy, level.name, name, out_dir, tag, token)
+    _dump_coverage(footprint, height, reference_bathy, level, name, out_dir, tag, token)
     area = grid.cell_area(footprint["lat"].values, footprint["lon"].values)
     return masked, float(area.where(footprint).sum()), float((area * height).sum())
 
 
-def _dump_coverage(footprint, height, reference_bathy, level, mask_name, out_dir, tag=None):
+def _dump_coverage(footprint, height, reference_bathy, level, mask_name, out_dir, tag=None, token=None):
     """Sibling .nc to the mask png, on the product grid, with two per-cell diagnostics (NaN off-footprint):
 
       kept_thickness       — the n_fac-weighted column thickness kept at the cell (the volume's height).
@@ -174,13 +174,14 @@ def _dump_coverage(footprint, height, reference_bathy, level, mask_name, out_dir
         "units": "m", "long_name": "in-layer water below the kept column, to min(bathy, layer bottom)"}
     ds.attrs.update({"level": level.name, "mask": mask_name})
     os.makedirs(out_dir, exist_ok=True)
-    stem = "coverage_%s_%s_%s" % (tag, level.name, mask_name) if tag else "coverage_%s_%s" % (level.name, mask_name)
+    tokens = [t for t in (tag, token) if t]                          # tag/token optional; level+mask always
+    stem = "_".join(["coverage", *tokens, level.name, mask_name])
     path = os.path.join(out_dir, stem + ".nc")
     ds.to_netcdf(path)
     print("wrote", path)
 
 
-def _dump_png(footprint, reference_bathy, level_name, mask_name, out_dir, tag=None):
+def _dump_png(footprint, reference_bathy, level_name, mask_name, out_dir, tag=None, token=None):
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -205,7 +206,8 @@ def _dump_png(footprint, reference_bathy, level_name, mask_name, out_dir, tag=No
                        Patch(facecolor="lightgrey", label="land")],
               loc="lower left", fontsize=8, framealpha=0.9)
     os.makedirs(out_dir, exist_ok=True)
-    stem = "mask_%s_%s_%s" % (tag, level_name, mask_name) if tag else "mask_%s_%s" % (level_name, mask_name)
+    tokens = [t for t in (tag, token) if t]                          # tag/token optional; level+mask always
+    stem = "_".join(["mask", *tokens, level_name, mask_name])
     path = os.path.join(out_dir, stem + ".png")
     fig.tight_layout()
     fig.savefig(path, dpi=110)

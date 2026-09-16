@@ -38,19 +38,22 @@ def run(cfg):
     submissions = loader.load_submissions(cfg.submissions, with_members=not cfg.no_ensemble)
     reference_bathy = loader.load_bathy(cfg.bathy)
 
-    blob = run_level(level, submissions, reference_bathy, cfg)
-    loader.write_blob(blob, level, cfg)
+    token = loader.file_token(cfg, submissions)                    # shared by the .nc and the auxiliaries
+    blob = run_level(level, submissions, reference_bathy, cfg, token)
+    loader.stamp_chain_provenance(blob, level, cfg, submissions)   # roll upstream chain + stamp ohc_derive_*
+    loader.write_blob(blob, level, cfg, token)
     return blob
 
 
-def run_level(level, submissions, reference_bathy, cfg):
+def run_level(level, submissions, reference_bathy, cfg, token=None):
     """The six steps for one synthetic level -> its dataset."""
     constituents = levels.constituents(level, submissions)          # the native levels this band needs
 
     # step 2 — apply the cross-layer mask; dumps the mask png and returns the footprint area and volume.
     require_top = cfg.require_top if cfg.require_top is not None else level.require_top
     masked, area_m2, volume_m3 = masks.apply(cfg.mask, level, constituents, reference_bathy,
-                                             out_dir=cfg.out, require_top=require_top, tag=cfg.tag)
+                                             out_dir=cfg.out, require_top=require_top, tag=cfg.tag,
+                                             token=token)
 
     # step 3 — reduce each constituent to its map-level primitives (integral + gridded field).
     maps = map_transforms.apply(masked, level)
@@ -83,10 +86,15 @@ def main():
     ap.add_argument("--require-top", type=float, default=None,
                     help="metres of the layer's own top that must be defined for a cell to survive; "
                          "overrides the level's own require_top (used by contiguous_from_top)")
-    ap.add_argument("--time-window", default=None, help="YEAR0:YEAR1 baseline/trend window (default: all years)")
+    ap.add_argument("--time-window", default=None,
+                    help="YEAR0:YEAR1 baseline/trend window (default: all years); separator "
+                         "`:`, `-`, or `_` (so the filename token 2004_2025 works too)")
     ap.add_argument("--no-ensemble", action="store_true", help="mean field only; no standard deviations")
     ap.add_argument("--tag", required=True, help="provenance tag (filename token + provenance_tag attr)")
     ap.add_argument("--provenance-link", default=None, help="URL/path to the provenance record")
+    ap.add_argument("--code-version", required=True,
+                    help="URL to the exact ohc_derive code (commit/release); stamped as "
+                         "ohc_derive_code_version")
     ap.add_argument("--out", default=".")
     cfg = ap.parse_args()
     cfg.quantities = [s.strip() for s in cfg.quantities.split(",") if s.strip()]
@@ -97,10 +105,11 @@ def main():
 
 
 def _parse_window(s):
-    """YEAR0:YEAR1 (or -) -> (int, int); None/empty -> None (all years)."""
+    """YEAR0:YEAR1 -> (int, int); None/empty -> None (all years). Separator may be `:`, `-`, or `_`, so
+    the underscore year-range token from the filenames (e.g. `2004_2025`) parses as-is."""
     if not s:
         return None
-    y0, y1 = (int(x) for x in s.replace("-", ":").split(":"))
+    y0, y1 = (int(x) for x in s.replace("-", ":").replace("_", ":").split(":"))
     return (y0, y1)
 
 
