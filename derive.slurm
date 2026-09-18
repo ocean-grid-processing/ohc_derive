@@ -19,6 +19,9 @@ conda activate ohc_crosscheck
 
 cd $SLURM_SUBMIT_DIR
 tag=260908-OP20260507
+product_name=LocalGP
+author=Giglio_etal2026
+citation="Giglio, D. et al. (2026): LocalGP ocean heat content — mask/coverage auxiliaries. DOI: <fill in on deposit>."
 results=/scratch/alpine/wimi7695/ohc_prod/results_260908
 python run.py \
     ${results}/OHC_${tag}*.nc \
@@ -30,4 +33,5 @@ python run.py \
     --tag  ${tag} \
     --provenance-link https://github.com/ocean-grid-processing/provenance/blob/main/README.md \
     --code-version https://github.com/ocean-grid-processing/ohc_derive/releases/tag/1.0.0 \
+    --product-name ${product_name} --author ${author} --citation "${citation}" \
     --out ${results}
