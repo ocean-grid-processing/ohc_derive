@@ -53,7 +53,10 @@ def run_level(level, submissions, reference_bathy, cfg, token=None):
     require_top = cfg.require_top if cfg.require_top is not None else level.require_top
     masked, area_m2, volume_m3 = masks.apply(cfg.mask, level, constituents, reference_bathy,
                                              out_dir=cfg.out, require_top=require_top, tag=cfg.tag,
-                                             token=token)
+                                             token=token,
+                                             product_name=getattr(cfg, "product_name", ""),
+                                             author=getattr(cfg, "author", ""),
+                                             citation=getattr(cfg, "citation", ""))
 
     # step 3 — reduce each constituent to its map-level primitives (integral + gridded field).
     maps = map_transforms.apply(masked, level)
@@ -95,12 +98,21 @@ def main():
     ap.add_argument("--code-version", required=True,
                     help="URL to the exact ohc_derive code (commit/release); stamped as "
                          "ohc_derive_code_version")
+    ap.add_argument("--product-name", required=True,
+                    help="product name; trailing filename token on the published mask/coverage auxiliaries "
+                         "(placeholder is fine if you don't care)")
+    ap.add_argument("--author", required=True,
+                    help="author; last filename token on the mask/coverage auxiliaries (e.g. Giglio_etal2026)")
+    ap.add_argument("--citation", required=True,
+                    help="citation sentence; written to the coverage .nc's top-level `citation` attr")
     ap.add_argument("--out", default=".")
     cfg = ap.parse_args()
     cfg.quantities = [s.strip() for s in cfg.quantities.split(",") if s.strip()]
     if not cfg.quantities:
         raise SystemExit("nothing to build: give --quantities")
     cfg.time_window = _parse_window(cfg.time_window)
+    cfg.product_name = "".join(cfg.product_name.split())            # filename tokens: whitespace-stripped,
+    cfg.author = "".join(cfg.author.split())                        # case preserved, no other munging
     run(cfg)
 
 

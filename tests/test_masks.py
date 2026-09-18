@@ -230,6 +230,21 @@ def test_apply_writes_coverage_diagnostics(tmp_path):
     assert np.isclose(float(cov["uncaptured_thickness"].isel(lat=0, lon=1)), 0.0)
 
 
+def test_apply_coverage_carries_publication_meta(tmp_path):
+    # product_name/author append to the aux filenames (last before the extension); citation lands as a
+    # top-level attr on the coverage .nc.
+    lv = levels.get("0_2000")
+    cons5 = _cons5(nan_300700=[(0, 0)])
+    bathy = conftest.bathy([[2500.0, 3000.0, 3000.0], [3000.0, 3000.0, 3000.0]])
+    masks.apply("contiguous_from_top", lv, cons5, bathy, out_dir=str(tmp_path), require_top=300,
+                tag="dev", product_name="LocalGP", author="Giglio_etal2026",
+                citation="Giglio et al. (2026)")
+
+    cov_path = tmp_path / "coverage_dev_0_2000_contiguous_from_top_LocalGP_Giglio_etal2026.nc"
+    assert cov_path.exists()                                          # product_name/author suffixed
+    assert xr.open_dataset(str(cov_path)).attrs["citation"] == "Giglio et al. (2026)"
+
+
 def test_apply_unknown_mask_exits(tmp_path):
     with pytest.raises(SystemExit):
         masks.apply("bogus", LV, _default(), BATHY, out_dir=str(tmp_path))
